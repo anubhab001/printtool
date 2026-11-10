@@ -60,11 +60,6 @@ Files, a folder or a zip can be dragged in or added by button. The
 toolbar covers add/preview/print; the right-click menu covers
 settings, duplicate, retry, reorder, remove and queue pause/cancel.
 
-## License
-
-MIT, per [LICENSE](LICENSE). SumatraPDF, fetched separately and not
-redistributed here, is GPLv3.
-
 ---
 
 Created with Anthropic's Claude.
