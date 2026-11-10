@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "printtool"
+version = "3"
+description = "Cross-platform CLI + GUI tool to print PDFs directly, in batch, or from a whole folder, without opening a viewer."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "printtool contributors" }]
+keywords = ["pdf", "print", "cli", "gui", "batch-printing", "cups", "sumatrapdf"]
+classifiers = [
+    "Environment :: Console",
+    "Environment :: Win32 (MS Windows)",
+    "Environment :: X11 Applications :: Qt",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Topic :: Printing",
+]
+dependencies = [
+    "click>=8.1",
+    "pyyaml>=6.0",
+    "pypdf>=4.0",
+]
+
+[project.optional-dependencies]
+gui = ["PySide6>=6.6"]
+win32 = ["pywin32>=306; sys_platform == 'win32'"]
+dev = [
+    "pytest>=7.4",
+    "pytest-mock>=3.12",
+]
+build = ["pyinstaller>=6.10"]
+
+[project.scripts]
+printtool = "printtool.cli:main"
+
+[project.gui-scripts]
+printtool-gui = "printtool.gui.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"printtool.gui" = ["assets/*.png"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
