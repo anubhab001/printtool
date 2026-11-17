@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "printtool"
-version = "3"
-description = "Cross-platform CLI + GUI tool to print PDFs directly, in batch, or from a whole folder, without opening a viewer."
+version = "5"
+description = "Batch PDF printing without a viewer or print dialog, as a CLI and a GUI."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
@@ -27,6 +27,7 @@ dependencies = [
     "click>=8.1",
     "pyyaml>=6.0",
     "pypdf>=4.0",
+    "reportlab>=4.0",
 ]
 
 [project.optional-dependencies]

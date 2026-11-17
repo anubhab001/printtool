@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import dataclasses
 import sys
 import zipfile
 from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QFileInfo, Qt, QThread, Signal
-from PySide6.QtGui import QIcon, QKeySequence, QShortcut
+from PySide6.QtGui import QAction, QActionGroup, QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -59,10 +60,11 @@ class PrintWorker(QThread):
     job_status = Signal(str, str, str)  # path, status value, message
     finished_all = Signal()
 
-    def __init__(self, jobs: list[PrintJob], auto_preview: bool = False) -> None:
+    def __init__(self, jobs: list[PrintJob], auto_preview: bool = False, stamp_timestamp: bool = False) -> None:
         super().__init__()
         self._jobs = jobs
         self._auto_preview = auto_preview
+        self._stamp_timestamp = stamp_timestamp
         self._cancel_requested = False
         self._paused = False
 
@@ -102,7 +104,12 @@ class PrintWorker(QThread):
                     continue
             if self._auto_preview:
                 preview.open_in_default_viewer(job.path)
-            result = backend.print_file(job.path, job.settings)
+            print_path = job.path
+            if self._stamp_timestamp:
+                stamped = pages.stamp_pdf(job.path)
+                if stamped is not None:
+                    print_path = stamped
+            result = backend.print_file(print_path, job.settings)
             job.status = JobStatus.DONE if result.success else JobStatus.FAILED
             self.job_status.emit(job.job_id, job.status.value, result.message)
         self.finished_all.emit()
@@ -241,16 +248,25 @@ class MainWindow(QMainWindow):
         stats_row.addWidget(self.advanced_stats_label)
 
         self.sort_combo = QComboBox()
-        self.sort_combo.addItem("Unsorted", None)
+        self.sort_combo.addItem("(Unsorted)", None)
         self.sort_combo.addItem("Name", "name")
         self.sort_combo.addItem("Size", "size")
         self.sort_combo.addItem("Pages", "pages")
         self.sort_combo.addItem("Last modified", "modified")
         self.sort_combo.currentIndexChanged.connect(lambda _: self._sort_queue())
 
+        self.print_now_btn = QPushButton("Print now")
+        self.print_now_btn.setEnabled(False)
+        self.print_now_btn.clicked.connect(self._print_selected_now)
+        self.print_all_btn = QPushButton("Print all")
+        self.print_all_btn.setEnabled(False)
+        self.print_all_btn.clicked.connect(self._print_all)
+
         queue_header = QHBoxLayout()
         queue_header.addWidget(QLabel("Queue"))
         queue_header.addStretch()
+        queue_header.addWidget(self.print_now_btn)
+        queue_header.addWidget(self.print_all_btn)
         queue_header.addWidget(QLabel("Sort by"))
         queue_header.addWidget(self.sort_combo)
 
@@ -378,26 +394,70 @@ class MainWindow(QMainWindow):
         self.auto_preview_action.setChecked(settings.load_auto_preview())
         self.auto_preview_action.triggered.connect(self._on_toggle_auto_preview)
         view_menu.addSeparator()
+        view_menu.addAction("File types...", self._edit_file_types)
         view_menu.addAction("Open settings file...", self._open_settings_file)
 
         advanced_menu = menu_bar.addMenu("&Advanced")
-        self.advanced_formats_action = advanced_menu.addAction("Show advanced file formats when scanning")
+
+        scanning_menu = advanced_menu.addMenu("Scanning && stats")
+        self.advanced_formats_action = scanning_menu.addAction("Show advanced file formats when scanning")
         self.advanced_formats_action.setCheckable(True)
         self.advanced_formats_action.setToolTip(
             "Also offer settings.yaml's advanced_extensions (e.g. txt, log, html) when scanning a folder or zip."
         )
-        self.advanced_stats_action = advanced_menu.addAction("Show advanced print statistics")
+        self.advanced_stats_action = scanning_menu.addAction("Show advanced print statistics")
         self.advanced_stats_action.setCheckable(True)
         self.advanced_stats_action.setToolTip(
             "Paper area and a rough ink/power estimate, assuming average page coverage -- not a measurement."
         )
         self.advanced_stats_action.triggered.connect(lambda: self._update_queue_stats())
-        self.blank_area_warning_action = advanced_menu.addAction("Warn on mostly-blank pages before printing")
+
+        queue_behavior_menu = advanced_menu.addMenu("Queue behavior")
+        self.blank_area_warning_action = queue_behavior_menu.addAction("Warn on mostly-blank pages before printing")
         self.blank_area_warning_action.setCheckable(True)
-        self.blank_area_warning_action.setChecked(True)
-        advanced_menu.addSeparator()
-        advanced_menu.addAction("Print a blank page...", self._print_blank_page)
-        advanced_menu.addAction("Print a test page...", self._print_test_page)
+        self.blank_area_warning_action.setChecked(settings.load_warn_on_blank_pages())
+        self.blank_area_warning_action.triggered.connect(settings.save_warn_on_blank_pages)
+        self.interleave_copies_action = queue_behavior_menu.addAction(
+            "Interleave copies across the queue (1,2,1,2...)"
+        )
+        self.interleave_copies_action.setCheckable(True)
+        self.interleave_copies_action.setChecked(settings.load_interleave_copies())
+        self.interleave_copies_action.setToolTip(
+            "Instead of printing every copy of file A then every copy of file B, round-robin one "
+            "copy of each queued file at a time until each has had all its copies."
+        )
+        self.interleave_copies_action.triggered.connect(settings.save_interleave_copies)
+
+        page_extras_menu = advanced_menu.addMenu("Page extras")
+        page_extras_menu.addAction("Print a blank page...", self._print_blank_page)
+        page_extras_menu.addAction("Print a test page...", self._print_test_page)
+        page_extras_menu.addSeparator()
+        blank_spacer_menu = page_extras_menu.addMenu("Insert blank page around each file")
+        self._blank_spacer_group = QActionGroup(self)
+        self._blank_spacer_group.setExclusive(True)
+        current_spacer = settings.load_blank_page_insertion()
+        for value, label in (
+            ("none", "None"),
+            ("before", "Before each file"),
+            ("after", "After each file"),
+            ("both", "Before and after each file"),
+        ):
+            action = QAction(label, self)
+            action.setCheckable(True)
+            action.setChecked(value == current_spacer)
+            action.setData(value)
+            action.triggered.connect(lambda _checked, v=value: settings.save_blank_page_insertion(v))
+            self._blank_spacer_group.addAction(action)
+            blank_spacer_menu.addAction(action)
+
+        self.stamp_timestamp_action = page_extras_menu.addAction("Stamp date & time on each printed page")
+        self.stamp_timestamp_action.setCheckable(True)
+        self.stamp_timestamp_action.setChecked(settings.load_stamp_timestamp())
+        self.stamp_timestamp_action.setToolTip(
+            "Bottom-right corner, PDF files only -- not present in the original file, added just "
+            "before this print."
+        )
+        self.stamp_timestamp_action.triggered.connect(settings.save_stamp_timestamp)
 
         help_menu = menu_bar.addMenu("&Help")
         help_menu.addAction("Tip...", self._show_tip)
@@ -426,6 +486,7 @@ class MainWindow(QMainWindow):
             style.standardIcon(QStyle.SP_DriveFDIcon), "Print all", self._print_all
         )
         self.print_all_action.setToolTip("Print all queued files")
+        self.print_all_action.setEnabled(False)
 
         self.preview_action.setEnabled(False)
         self.print_now_action.setEnabled(False)
@@ -433,6 +494,11 @@ class MainWindow(QMainWindow):
 
     def _open_settings_file(self) -> None:
         preview.open_in_default_viewer(ensure_settings_file())
+
+    def _edit_file_types(self) -> None:
+        from .file_types import FileTypesDialog  # loaded on demand to keep startup fast
+
+        FileTypesDialog(self._open_settings_file, self).exec()
 
     def _show_tip(self) -> None:
         QMessageBox.information(
@@ -516,6 +582,8 @@ class MainWindow(QMainWindow):
 
     def _update_queue_stats(self) -> None:
         jobs = list(self.jobs.values())
+        self.print_all_btn.setEnabled(bool(jobs))
+        self.print_all_action.setEnabled(bool(jobs))
         if not jobs:
             self.queue_stats_label.setText("")
             self.advanced_stats_label.setText("")
@@ -615,6 +683,7 @@ class MainWindow(QMainWindow):
             item.setData(ZIP_GROUP_HEADER_ROLE, zip_header)
 
         self._log_timestamped(label, f"{zip_path} (zip, {leaf_count} file(s) tracked)")
+        self._update_queue_stats()
 
     @staticmethod
     def _tree_lines(node, prefix: str = ""):
@@ -854,6 +923,7 @@ class MainWindow(QMainWindow):
 
     def _update_selection_actions(self) -> None:
         has_selection = bool(self.file_list.selectedItems())
+        self.print_now_btn.setEnabled(has_selection)
         self.preview_action.setEnabled(has_selection)
         self.print_now_action.setEnabled(has_selection)
 
@@ -946,6 +1016,40 @@ class MainWindow(QMainWindow):
 
     # -- printing --
 
+    @staticmethod
+    def _interleave_copies(jobs: list[PrintJob]) -> list[PrintJob]:
+        """Round-robin one copy of each job at a time (1,2,1,2,... instead of
+        1,1,2,2,...): each round takes the jobs that still have a copy left
+        and sends them with copies=1, so consecutive print calls alternate
+        between files instead of finishing one file's copies before the
+        next starts."""
+        max_copies = max((job.settings.copies for job in jobs), default=1)
+        calls = []
+        for round_index in range(max_copies):
+            for job in jobs:
+                if round_index < job.settings.copies:
+                    calls.append(dataclasses.replace(job, settings=job.settings.clone(copies=1)))
+        return calls
+
+    def _bracket_blank_pages(self, jobs: list[PrintJob]) -> list[PrintJob]:
+        mode = settings.load_blank_page_insertion()
+        if mode == "none" or not jobs:
+            return jobs
+        paper_size = self.settings_widget.to_settings().paper_size
+        result = []
+        for job in jobs:
+            if mode in ("before", "both"):
+                result.append(self._make_blank_spacer_job(paper_size))
+            result.append(job)
+            if mode in ("after", "both"):
+                result.append(self._make_blank_spacer_job(paper_size))
+        return result
+
+    @staticmethod
+    def _make_blank_spacer_job(paper_size: str | None) -> PrintJob:
+        path = pages.build_blank_pdf(paper_size)
+        return PrintJob(path=path, settings=PrintSettings(paper_size=paper_size))
+
     def _print_all(self) -> None:
         if not self.jobs:
             QMessageBox.information(self, "Nothing to print", "Add some files first.")
@@ -982,6 +1086,11 @@ class MainWindow(QMainWindow):
                 if job.pending_extract is None and pages.mostly_blank(job.path):
                     self.log.appendPlainText(f"Warning: {job.path.name} looks mostly blank.")
 
+        if self.interleave_copies_action.isChecked() and len(jobs) > 1:
+            jobs = self._interleave_copies(jobs)
+
+        jobs = self._bracket_blank_pages(jobs)
+
         self.print_btn.setEnabled(False)
         self.pause_btn.setEnabled(True)
         self.pause_btn.setText("Pause")
@@ -990,7 +1099,11 @@ class MainWindow(QMainWindow):
         self._print_run_started = datetime.now()
         self._update_queue_stats()
 
-        self.worker = PrintWorker(jobs, auto_preview=self.auto_preview_action.isChecked())
+        self.worker = PrintWorker(
+            jobs,
+            auto_preview=self.auto_preview_action.isChecked(),
+            stamp_timestamp=self.stamp_timestamp_action.isChecked(),
+        )
         self.worker.job_status.connect(self._on_job_status)
         self.worker.finished_all.connect(self._on_all_done)
         self.worker.start()
@@ -1048,7 +1161,18 @@ class MainWindow(QMainWindow):
 
         succeeded = 0
         for job in self.jobs.values():
-            args = settings_to_args(job.path, job.settings)
+            path = job.path
+            if job.pending_extract is not None:
+                # The scheduled command runs later, standalone, with no
+                # access to the original zip's queue entry -- extract now
+                # so there is a real file on disk for it to print.
+                zip_path, chain = job.pending_extract
+                try:
+                    path = archive.extract_leaf(zip_path, chain)
+                except (KeyError, ValueError, OSError) as exc:
+                    self.log.appendPlainText(f"Could not extract {job.path.name} from zip to schedule it: {exc}")
+                    continue
+            args = settings_to_args(path, job.settings)
             success, message = schedule_core.schedule_print(at, args)
             self.log.appendPlainText(message)
             if success:
@@ -1057,6 +1181,17 @@ class MainWindow(QMainWindow):
 
 
 def main() -> None:
+    if sys.platform.startswith("win"):
+        # Windows groups a taskbar icon by this ID rather than by the
+        # actual .exe; left unset, a python.exe-launched GUI shows
+        # Python's own generic icon on the taskbar instead of printtool's.
+        import ctypes
+
+        try:
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("printtool.gui")
+        except Exception:
+            pass
+
     ensure_settings_file()
     app = QApplication(sys.argv)
     app.setWindowIcon(QIcon(asset_path("printer-icon.png")))

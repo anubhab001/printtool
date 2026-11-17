@@ -109,6 +109,16 @@ def list_printers() -> list[str]:
     """Enumerate Windows printers without a hard pywin32 dependency, falling
     back to pywin32 for the default-printer lookup when available."""
     try:
+        import win32print  # type: ignore
+
+        # Much faster than spawning PowerShell, which can take tens of seconds.
+        flags = win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS
+        names = [p[2] for p in win32print.EnumPrinters(flags)]
+        if names:
+            return names
+    except Exception:
+        pass
+    try:
         out = subprocess.run(
             [
                 "powershell",

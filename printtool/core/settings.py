@@ -24,6 +24,10 @@ DEFAULTS: dict = {
     "printable_extensions": ["pdf"],
     "advanced_extensions": ["txt", "log", "html"],
     "auto_scan_pwd": True,
+    "warn_on_blank_pages": True,
+    "interleave_copies": False,
+    "blank_page_insertion": "none",  # one of: none, before, after, both
+    "stamp_timestamp": False,
 }
 
 # One comment per key, written above it when the file is (re)generated, so
@@ -42,6 +46,10 @@ _COMMENTS: dict = {
     "printable_extensions": "File extensions (no dots) always offered as printable, e.g. when scanning a folder or zip.",
     "advanced_extensions": "Extra extensions offered only with advanced options on. Printing one works only as well as the OS backend (SumatraPDF/CUPS) supports that format; nothing here is converted to PDF first.",
     "auto_scan_pwd": "Queue the current folder's printable files (zip contents included) automatically on startup.",
+    "warn_on_blank_pages": "Log a warning before printing a page that looks mostly blank (a rough heuristic, not a real render check).",
+    "interleave_copies": "Round-robin one copy of each queued file at a time instead of finishing one file's copies before starting the next.",
+    "blank_page_insertion": "Print an extra blank page before/after/both around every queued file; one of none, before, after, both.",
+    "stamp_timestamp": "Stamp the current date/time in the bottom-right corner of every printed PDF page (PDF files only).",
 }
 
 
@@ -111,6 +119,38 @@ def load_auto_preview(path: Path | None = None) -> bool:
 
 def save_auto_preview(value: bool, path: Path | None = None) -> None:
     save_defaults({"auto_preview_before_print": value}, path)
+
+
+def load_warn_on_blank_pages(path: Path | None = None) -> bool:
+    return bool(load_defaults(path)["warn_on_blank_pages"])
+
+
+def save_warn_on_blank_pages(value: bool, path: Path | None = None) -> None:
+    save_defaults({"warn_on_blank_pages": value}, path)
+
+
+def load_interleave_copies(path: Path | None = None) -> bool:
+    return bool(load_defaults(path)["interleave_copies"])
+
+
+def save_interleave_copies(value: bool, path: Path | None = None) -> None:
+    save_defaults({"interleave_copies": value}, path)
+
+
+def load_blank_page_insertion(path: Path | None = None) -> str:
+    return str(load_defaults(path)["blank_page_insertion"])
+
+
+def save_blank_page_insertion(value: str, path: Path | None = None) -> None:
+    save_defaults({"blank_page_insertion": value}, path)
+
+
+def load_stamp_timestamp(path: Path | None = None) -> bool:
+    return bool(load_defaults(path)["stamp_timestamp"])
+
+
+def save_stamp_timestamp(value: bool, path: Path | None = None) -> None:
+    save_defaults({"stamp_timestamp": value}, path)
 
 
 def default_print_settings(path: Path | None = None) -> PrintSettings:

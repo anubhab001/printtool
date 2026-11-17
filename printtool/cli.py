@@ -51,11 +51,14 @@ def _settings_options(f):
         show_default=True,
         help="Delete the original file once it has printed successfully.",
     )(f)
+    f = click.option("--mirror-lr", is_flag=True, default=False, help="Mirror left-right before printing (PDF only).")(f)
+    f = click.option("--mirror-tb", is_flag=True, default=False, help="Mirror top-bottom before printing (PDF only).")(f)
     return f
 
 
 def _build_settings(
-    printer, copies, duplex, paper, orientation, pages, fit, collate, buffer_copy, delete_after_print
+    printer, copies, duplex, paper, orientation, pages, fit, collate, buffer_copy, delete_after_print,
+    mirror_lr=False, mirror_tb=False,
 ) -> PrintSettings:
     return PrintSettings(
         printer=printer,
@@ -68,6 +71,8 @@ def _build_settings(
         collate=collate,
         buffer_copy=buffer_copy,
         delete_after_print=delete_after_print,
+        mirror_lr=mirror_lr,
+        mirror_tb=mirror_tb,
     )
 
 
@@ -88,9 +93,15 @@ def settings_path_cmd() -> None:
 @click.argument("files", nargs=-1, required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path))
 @_settings_options
 @click.option("--dry-run", is_flag=True, help="Show what would be printed without printing.")
-def print_cmd(files, printer, copies, duplex, paper, orientation, pages, fit, collate, buffer_copy, delete_after_print, dry_run):
+def print_cmd(
+    files, printer, copies, duplex, paper, orientation, pages, fit, collate, buffer_copy, delete_after_print,
+    mirror_lr, mirror_tb, dry_run,
+):
     """Print one or more files with the same settings."""
-    settings = _build_settings(printer, copies, duplex, paper, orientation, pages, fit, collate, buffer_copy, delete_after_print)
+    settings = _build_settings(
+        printer, copies, duplex, paper, orientation, pages, fit, collate, buffer_copy, delete_after_print,
+        mirror_lr, mirror_tb,
+    )
     _run(files, settings, dry_run)
 
 
@@ -106,7 +117,8 @@ def print_cmd(files, printer, copies, duplex, paper, orientation, pages, fit, co
 @_settings_options
 @click.option("--dry-run", is_flag=True, help="Show what would be printed without printing.")
 def batch_folder_cmd(
-    folder, recursive, ext, advanced, printer, copies, duplex, paper, orientation, pages, fit, collate, buffer_copy, delete_after_print, dry_run
+    folder, recursive, ext, advanced, printer, copies, duplex, paper, orientation, pages, fit, collate, buffer_copy,
+    delete_after_print, mirror_lr, mirror_tb, dry_run,
 ):
     """Print every printable file found in FOLDER (the current folder by default) with the same settings."""
     extensions = (
@@ -123,7 +135,10 @@ def batch_folder_cmd(
     if not files:
         click.echo(f"No printable files found in {folder}")
         return
-    settings = _build_settings(printer, copies, duplex, paper, orientation, pages, fit, collate, buffer_copy, delete_after_print)
+    settings = _build_settings(
+        printer, copies, duplex, paper, orientation, pages, fit, collate, buffer_copy, delete_after_print,
+        mirror_lr, mirror_tb,
+    )
     _run(files, settings, dry_run)
 
 

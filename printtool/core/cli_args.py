@@ -25,4 +25,8 @@ def settings_to_args(path: Path, settings: PrintSettings) -> list[str]:
     args.append("--collate" if settings.collate else "--no-collate")
     args.append("--buffer-copy" if settings.buffer_copy else "--no-buffer-copy")
     args.append("--delete-after-print" if settings.delete_after_print else "--no-delete-after-print")
+    if settings.mirror_lr:
+        args.append("--mirror-lr")
+    if settings.mirror_tb:
+        args.append("--mirror-tb")
     return args

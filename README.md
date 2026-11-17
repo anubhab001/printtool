@@ -1,64 +1,47 @@
 # printtool
 
-A cross-platform CLI and GUI for printing PDFs directly, without a
-viewer window or a print dialog for every file.
+Prints PDFs straight to paper, one file or a whole batch, without opening a viewer or a print dialog per file.
 
-- Printing one or more files, every printable file in a folder
-  (recursive, auto-detected on startup too) or inside a `.zip` (nested
-  zips included), with one shared setting or a per-file override.
-- The GUI queue accepts drag-and-drop, sorts by name/size/pages/last
-  modified, shows a file-type icon and a status glyph per row, a
-  page-count/progress/ETA line, and duplicate/retry/reorder/pause/cancel
-  from a right-click menu.
-- A network printer can be registered by IP (driverless IPP by
-  default); a queue can be scheduled through the OS's own scheduler.
-- Advanced options (behind a disclosure, not in the way): buffer-copy,
-  delete-after-print, left-right/top-bottom mirroring, a blank/test
-  page, and a before-printing warning for a mostly-blank page.
+![printtool GUI on Windows with files, a zip and a nested zip queued](docs/printtool-screenshot.png)
+
+The GUI on Windows.
+
+- One set of settings (printer, copies, duplex, paper size, page range, fit to page) applies to a whole batch; any queued file can override it.
+- Files, folders and zips (nested zips included) can be added by button or by drag and drop; zip members are extracted only when printed.
+- A queue can be paused, reordered, retried, or handed to the OS scheduler to print later.
+- A network printer can be added by IP address.
 
 ## Mechanism
 
 | OS | Engine |
 |----|--------|
-| Windows | [SumatraPDF](https://www.sumatrapdfreader.org/) portable, invoked silently |
-| Linux, macOS | CUPS (`lp`), already part of both |
-
-SumatraPDF is GPLv3 and not bundled; `scripts/fetch_sumatra.py` fetches
-the official portable build, invoked only as a subprocess.
+| Windows | [SumatraPDF](https://www.sumatrapdfreader.org/) portable, fetched by `scripts/fetch_sumatra.py` and not bundled |
+| Linux, macOS | CUPS (`lp`) |
 
 ## Install
 
 ```bash
-pip install -e ".[gui]"       # CLI and GUI
-pip install -e .              # CLI only
-python scripts/fetch_sumatra.py   # Windows only
+pip install -e ".[gui]"
+python scripts/fetch_sumatra.py   # Windows only, once
 ```
 
-Settings (printer, paper size, duplex, which extensions count as
-printable, ...) live in a plain, hand-editable `settings.yaml`
-(`printtool settings-path` prints where).
+Defaults live in a hand-editable `settings.yaml` (`printtool settings-path` prints its location). The GUI's View → File types window chooses which formats count as printable; only PDF is on by default.
 
-## CLI
+## Usage
 
 ```bash
-printtool print report.pdf invoice.pdf --printer "Office Printer" --copies 2
-printtool batch-folder ./to-print --recursive --paper A4 --fit
+printtool print report.pdf invoice.pdf --printer "Office Printer" --copies 2 --duplex long_edge
+printtool batch-folder ./to-print --recursive --paper A4
 printtool list-printers
-printtool add-printer --name "Front Desk" --ip 192.168.1.50
-printtool schedule --at "2026-11-06 09:00" print report.pdf
-```
-
-`printtool --help` for the full flag list.
-
-## GUI
-
-```bash
 printtool-gui
 ```
 
-Files, a folder or a zip can be dragged in or added by button. The
-toolbar covers add/preview/print; the right-click menu covers
-settings, duplicate, retry, reorder, remove and queue pause/cancel.
+## Development
+
+```bash
+pip install -e ".[dev]"
+pytest
+```
 
 ---
 

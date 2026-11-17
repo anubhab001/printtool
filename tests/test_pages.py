@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from printtool.core.pages import count_pages, paper_area_cm2, rough_consumption
+from printtool.core.pages import count_pages, paper_area_cm2, rough_consumption, stamp_pdf
 
 
 def _make_pdf(tmp_path, pages=1):
@@ -38,6 +38,24 @@ def test_paper_area_known_size():
 def test_paper_area_unknown_falls_back_to_a4():
     assert paper_area_cm2("Weird", 1) == paper_area_cm2("A4", 1)
     assert paper_area_cm2(None, 1) == paper_area_cm2("A4", 1)
+
+
+def test_stamp_pdf_produces_a_readable_pdf_with_extra_content(tmp_path):
+    path = _make_pdf(tmp_path, pages=2)
+    original_size = path.stat().st_size
+
+    stamped = stamp_pdf(path)
+
+    assert stamped is not None
+    assert stamped != path
+    assert count_pages(stamped) == 2
+    assert stamped.stat().st_size != original_size
+
+
+def test_stamp_pdf_non_pdf_returns_none(tmp_path):
+    path = tmp_path / "notes.txt"
+    path.write_text("x")
+    assert stamp_pdf(path) is None
 
 
 def test_rough_consumption_scales_with_pages():

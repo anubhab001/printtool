@@ -118,6 +118,39 @@ def mirror_pdf(path: Path, horizontal: bool, vertical: bool) -> Path | None:
         return None
 
 
+def stamp_pdf(path: Path) -> Path | None:
+    """A copy of `path` with the current date/time stamped in the
+    bottom-right corner of every page, drawn via a reportlab overlay
+    page merged onto each real page with pypdf (pypdf alone has no way
+    to draw text, only to merge/transform existing pages). None when
+    there is nothing to do (pypdf/reportlab missing, or not a PDF)."""
+    if PdfReader is None or path.suffix.lower() != ".pdf":
+        return None
+    try:
+        from datetime import datetime
+
+        from reportlab.pdfgen import canvas
+
+        writer = PdfWriter(clone_from=str(path))
+        stamp_text = datetime.now().strftime("%Y-%m-%d %H:%M")
+        for page in writer.pages:
+            width, height = float(page.mediabox.width), float(page.mediabox.height)
+            buf = io.BytesIO()
+            overlay_canvas = canvas.Canvas(buf, pagesize=(width, height))
+            overlay_canvas.setFont("Helvetica", 8)
+            overlay_canvas.drawRightString(width - 18, 12, stamp_text)
+            overlay_canvas.save()
+            buf.seek(0)
+            overlay_page = PdfReader(buf).pages[0]
+            page.merge_page(overlay_page)
+        dest = Path(tempfile.mkdtemp(prefix="printtool-stamp-")) / path.name
+        with open(dest, "wb") as f:
+            writer.write(f)
+        return dest
+    except Exception:
+        return None
+
+
 def mostly_blank(path: Path, threshold_bytes: int = 200) -> bool | None:
     """A rough, content-stream-size heuristic for "this page has barely
     anything on it" -- not a real render/coverage analysis, just enough
