@@ -1,0 +1,14 @@
+.claude/
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+dist-fedora/
+release-artifacts/
+.pytest_cache/
+.vscode/
+.idea/
+*.spec
