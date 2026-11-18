@@ -8,8 +8,16 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import QMimeData, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QCursor, QDrag, QFont
-from PySide6.QtWidgets import QAbstractItemView, QLabel, QListWidget, QStyledItemDelegate
+from PySide6.QtGui import QColor, QCursor, QDrag, QFont, QPainter, QPen
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QApplication,
+    QLabel,
+    QListWidget,
+    QStyle,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
+)
 
 JOB_ID_ROLE = Qt.UserRole
 STATUS_GLYPH_ROLE = Qt.UserRole + 1
@@ -44,6 +52,21 @@ class StatusGlyphDelegate(QStyledItemDelegate):
 
     def paint(self, painter, option, index) -> None:
         super().paint(painter, option, index)
+        if index.data(Qt.CheckStateRole) in (Qt.PartiallyChecked, Qt.PartiallyChecked.value):
+            # Light blue box: only some pages, or only some files of a group.
+            opt = QStyleOptionViewItem(option)
+            self.initStyleOption(opt, index)
+            style = opt.widget.style() if opt.widget else QApplication.style()
+            box = QRectF(style.subElementRect(QStyle.SE_ItemViewItemCheckIndicator, opt, opt.widget)).adjusted(1, 1, -1, -1)
+            painter.save()
+            painter.setRenderHint(QPainter.Antialiasing)
+            painter.setPen(QColor("#5b9bd5"))
+            painter.setBrush(QColor("#a9cff2"))
+            painter.drawRoundedRect(box, 3, 3)
+            painter.setPen(QPen(QColor("white"), 2))
+            mid = box.center().y()
+            painter.drawLine(int(box.left() + 4), int(mid), int(box.right() - 4), int(mid))
+            painter.restore()
         glyph_info = index.data(STATUS_GLYPH_ROLE)
         if not glyph_info:
             return

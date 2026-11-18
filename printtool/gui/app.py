@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QMenu,
     QMessageBox,
     QPlainTextEdit,
+    QProgressBar,
     QPushButton,
     QSpinBox,
     QStyle,
@@ -54,6 +55,12 @@ from .resources import asset_path
 from .widgets import SettingsWidget
 
 _ICON_PROVIDER = QFileIconProvider()
+_INDENT = "  "
+GROUP_HEADER_ROLE = Qt.UserRole + 10
+
+
+def _depth(text: str) -> int:
+    return (len(text) - len(text.lstrip(_INDENT[0]))) // len(_INDENT)
 
 
 class PrintWorker(QThread):
@@ -248,7 +255,7 @@ class MainWindow(QMainWindow):
         stats_row.addWidget(self.advanced_stats_label)
 
         self.sort_combo = QComboBox()
-        self.sort_combo.addItem("(Unsorted)", None)
+        self.sort_combo.addItem("Chronological", None)
         self.sort_combo.addItem("Name", "name")
         self.sort_combo.addItem("Size", "size")
         self.sort_combo.addItem("Pages", "pages")
@@ -267,6 +274,9 @@ class MainWindow(QMainWindow):
         queue_header.addStretch()
         queue_header.addWidget(self.print_now_btn)
         queue_header.addWidget(self.print_all_btn)
+        formats_btn = QPushButton("Printable formats...")
+        formats_btn.clicked.connect(self._edit_file_types)
+        queue_header.addWidget(formats_btn)
         queue_header.addWidget(QLabel("Sort by"))
         queue_header.addWidget(self.sort_combo)
 
@@ -274,6 +284,10 @@ class MainWindow(QMainWindow):
         left.addLayout(queue_header)
         left.addWidget(self.file_list)
         left.addLayout(stats_row)
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setTextVisible(True)
+        self.progress_bar.hide()
+        left.addWidget(self.progress_bar)
         left.addWidget(self.remove_zone)
         left.addLayout(file_buttons)
 
@@ -491,6 +505,8 @@ class MainWindow(QMainWindow):
         self.preview_action.setEnabled(False)
         self.print_now_action.setEnabled(False)
         self.file_list.itemSelectionChanged.connect(self._update_selection_actions)
+        self.file_list.itemChanged.connect(self._on_item_changed)
+        self._syncing_checks = False
 
     def _open_settings_file(self) -> None:
         preview.open_in_default_viewer(ensure_settings_file())
@@ -597,6 +613,9 @@ class MainWindow(QMainWindow):
             total = len(jobs)
             elapsed = (datetime.now() - self._print_run_started).total_seconds()
             pct = 100 * len(done) / total if total else 0
+            self.progress_bar.setRange(0, total)
+            self.progress_bar.setValue(len(done))
+            self.progress_bar.show()
             text = f"Printing: {len(done)}/{total} done ({pct:.0f}%)"
             if done and len(done) < total:
                 remaining = total - len(done)
@@ -656,17 +675,15 @@ class MainWindow(QMainWindow):
             self._log_timestamped(label, f"{zip_path.name} - no printable files found in zip")
             return
 
-        zip_header = QListWidgetItem(self.style().standardIcon(QStyle.SP_DirIcon), str(zip_path))
-        zip_header.setData(ZIP_GROUP_ROLE, True)
-        self.file_list.addItem(zip_header)
+        zip_icon = _ICON_PROVIDER.icon(QFileInfo(str(zip_path)))
+        zip_header = self._make_group_header(zip_icon, str(zip_path))
         group_rows = [zip_header]
 
         global_settings = self.settings_widget.to_settings()
         leaf_count = 0
         for prefix, node in self._tree_lines(tree):
             if node.is_zip:
-                item = QListWidgetItem(self.style().standardIcon(QStyle.SP_DirIcon), prefix + node.name)
-                self.file_list.addItem(item)
+                item = self._make_group_header(zip_icon, prefix + node.name, nested=True)
                 group_rows.append(item)
                 continue
             leaf_count += 1
@@ -686,19 +703,25 @@ class MainWindow(QMainWindow):
         self._update_queue_stats()
 
     @staticmethod
-    def _tree_lines(node, prefix: str = ""):
-        """[(connector_prefix, child_node), ...] depth-first, `tree`-style:
-        the last sibling at each level gets "└── " and a blank continuation
-        below it; every other sibling gets "├── " and a "│   " continuation."""
+    def _tree_lines(node, depth: int = 1):
+        """[(indent, child_node), ...] depth-first; each level is indented
+        a little further instead of drawing `tree`-style connector lines."""
         lines = []
-        for i, child in enumerate(node.children):
-            is_last = i == len(node.children) - 1
-            connector = "└── " if is_last else "├── "
-            lines.append((prefix + connector, child))
+        for child in node.children:
+            lines.append((_INDENT * depth, child))
             if child.is_zip:
-                continuation = "    " if is_last else "│   "
-                lines.extend(MainWindow._tree_lines(child, prefix + continuation))
+                lines.extend(MainWindow._tree_lines(child, depth + 1))
         return lines
+
+    def _make_group_header(self, icon, text: str, *, nested: bool = False) -> QListWidgetItem:
+        """A zip or folder row: checkable, standing for all files under it."""
+        item = QListWidgetItem(icon, text)
+        item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+        item.setCheckState(Qt.Checked)
+        item.setData(ZIP_GROUP_ROLE, not nested)
+        item.setData(GROUP_HEADER_ROLE, True)
+        self.file_list.addItem(item)
+        return item
 
     def _on_files_dropped(self, paths: list[Path]) -> None:
         self._add_paths(paths, label="File dragged")
@@ -723,7 +746,28 @@ class MainWindow(QMainWindow):
         if not files:
             self._log_timestamped("Folder scanned", f"{folder} - no printable files found")
             return
-        self._add_paths(files, label="Folder scanned")
+        self._add_folder_group(folder, files, label="Folder scanned")
+
+    def _add_folder_group(self, folder: Path, files: list[Path], *, label: str) -> None:
+        """A folder row (folder icon) with its chosen files indented under it."""
+        header = self._make_group_header(self.style().standardIcon(QStyle.SP_DirIcon), str(folder))
+        rows = [header]
+        global_settings = self.settings_widget.to_settings()
+        for path in files:
+            job = PrintJob(path=path, settings=global_settings.clone())
+            self.jobs[job.job_id] = job
+            item = self._make_item(job)
+            try:
+                rel = path.relative_to(folder)
+            except ValueError:
+                rel = Path(path.name)
+            item.setText(_INDENT * len(rel.parts) + str(rel))
+            self.file_list.addItem(item)
+            rows.append(item)
+        for item in rows:
+            item.setData(ZIP_GROUP_HEADER_ROLE, header)
+        self._log_timestamped(label, f"{folder} (folder, {len(files)} file(s))")
+        self._update_queue_stats()
 
     def _sort_queue(self) -> None:
         key = self.sort_combo.currentData()
@@ -892,12 +936,14 @@ class MainWindow(QMainWindow):
                 if job is not None:
                     job.settings = new_settings.clone()
             self.log.appendPlainText(f"Updated settings for {len(items)} file(s).")
+            self._refresh_check_marks()
 
     def _apply_global_to_all(self) -> None:
         settings = self.settings_widget.to_settings()
         for job in self.jobs.values():
             job.settings = settings.clone()
         self.log.appendPlainText(f"Applied current settings to all {len(self.jobs)} queued file(s).")
+        self._refresh_check_marks()
 
     def _refresh_printers(self) -> None:
         printers = backend.list_printers()
@@ -920,6 +966,60 @@ class MainWindow(QMainWindow):
                     self.log.appendPlainText(f"Could not open {job.path.name} from zip for preview: {exc}")
                     continue
             preview.open_in_default_viewer(path)
+
+    def _on_item_changed(self, item: QListWidgetItem) -> None:
+        """Keeps checkboxes meaningful: a group row toggles all its files, a
+        group shows light blue when only some are checked, and a file with
+        a page range shows light blue since not all of its pages print."""
+        if self._syncing_checks:
+            return
+        self._syncing_checks = True
+        try:
+            if item.data(GROUP_HEADER_ROLE):
+                on = item.checkState() != Qt.Unchecked
+                for row in self._subtree(item):
+                    row.setCheckState(Qt.Checked if on else Qt.Unchecked)
+            self._refresh_check_marks()
+        finally:
+            self._syncing_checks = False
+
+    def _refresh_check_marks(self) -> None:
+        was = self._syncing_checks
+        self._syncing_checks = True
+        try:
+            for row in range(self.file_list.count()):
+                item = self.file_list.item(row)
+                job = self.jobs.get(item.data(JOB_ID_ROLE))
+                if job is not None and item.checkState() != Qt.Unchecked:
+                    item.setCheckState(Qt.PartiallyChecked if job.settings.page_range else Qt.Checked)
+            # Deepest groups first, so an outer group sees its inner ones settled.
+            for row in reversed(range(self.file_list.count())):
+                item = self.file_list.item(row)
+                if not item.data(GROUP_HEADER_ROLE):
+                    continue
+                leaves = [r for r in self._subtree(item) if r.data(JOB_ID_ROLE) in self.jobs]
+                states = {r.checkState() for r in leaves}
+                if states == {Qt.Unchecked}:
+                    item.setCheckState(Qt.Unchecked)
+                elif states == {Qt.Checked}:
+                    item.setCheckState(Qt.Checked)
+                elif leaves:
+                    item.setCheckState(Qt.PartiallyChecked)
+        finally:
+            self._syncing_checks = was
+
+    def _subtree(self, header: QListWidgetItem) -> list[QListWidgetItem]:
+        """Rows indented under `header`, up to its next sibling group row."""
+        rows = self._group_rows(header.data(ZIP_GROUP_HEADER_ROLE) or header)
+        if header not in rows:  # still being built
+            return []
+        depth = _depth(header.text())
+        out = []
+        for row in rows[rows.index(header) + 1 :]:
+            if row.data(GROUP_HEADER_ROLE) and _depth(row.text()) <= depth:
+                break
+            out.append(row)
+        return out
 
     def _update_selection_actions(self) -> None:
         has_selection = bool(self.file_list.selectedItems())
@@ -1059,7 +1159,7 @@ class MainWindow(QMainWindow):
         for row in range(self.file_list.count()):
             item = self.file_list.item(row)
             job = self.jobs.get(item.data(JOB_ID_ROLE))
-            if job is not None and item.checkState() == Qt.Checked:
+            if job is not None and item.checkState() != Qt.Unchecked:
                 ordered_jobs.append(job)
         self._start_worker(ordered_jobs)
 
@@ -1134,6 +1234,9 @@ class MainWindow(QMainWindow):
             job.status = JobStatus(status_value)
             job.message = message
         self._refresh_item_text(job_id)
+        if job is not None and status_value == JobStatus.PRINTING.value:
+            pages_note = f"pages {job.settings.page_range}" if job.settings.page_range else "all pages"
+            self.progress_bar.setFormat(f"%v/%m  {job.path.name} ({pages_note})")
         if job is not None and status_value != JobStatus.PRINTING.value:
             self.log.appendPlainText(
                 f"[{status_value.upper()}] {job.path}{(' - ' + message) if message else ''}"
@@ -1142,6 +1245,7 @@ class MainWindow(QMainWindow):
 
     def _on_all_done(self) -> None:
         self.log.appendPlainText("Done.")
+        self.progress_bar.hide()
         self.print_btn.setEnabled(True)
         self.pause_btn.setEnabled(False)
         self.cancel_btn.setEnabled(False)

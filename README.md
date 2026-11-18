@@ -8,6 +8,8 @@ Prints PDFs straight to paper, one file or a whole batch, without opening a view
 
 - One set of settings (printer, copies, duplex, paper size, page range, fit to page) applies to a whole batch; any queued file can override it.
 - Files, folders and zips (nested zips included) can be added by button or by drag and drop; zip members are extracted only when printed.
+- A folder or zip row has its own checkbox; light blue marks a group printed only in part, or a file with a page range.
+- A progress bar under the queue shows the file printing now and its pages.
 - A queue can be paused, reordered, retried, or handed to the OS scheduler to print later.
 - A network printer can be added by IP address.
 
@@ -25,7 +27,7 @@ pip install -e ".[gui]"
 python scripts/fetch_sumatra.py   # Windows only, once
 ```
 
-Defaults live in a hand-editable `settings.yaml` (`printtool settings-path` prints its location). The GUI's View → File types window chooses which formats count as printable; only PDF is on by default.
+Defaults live in a hand-editable `settings.yaml` (`printtool settings-path` prints its location). The "Printable formats..." button above the queue chooses which formats count as printable; only PDF is on by default.
 
 ## Usage
 

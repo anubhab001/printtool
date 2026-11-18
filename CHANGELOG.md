@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+- Queue: Zip icon for zips, folder rows for scanned folders, plain indentation instead of tree lines.
+- Group checkboxes follow their files; light blue for partly printed groups or files with a page range.
+- "Chronological" replaces "(Unsorted)"; "Printable formats..." button above the queue.
+- Progress bar with the current file and its pages.
 - View → File types: Tick which formats count as printable (only PDF by default).
 - Faster startup (printers listed without PowerShell).
 - Advanced menu is grouped into submenus: Blank page around each file, date/time stamp (PDF only), interleaved copies (1,2,1,2).
