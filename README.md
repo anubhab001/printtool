@@ -4,7 +4,7 @@ Prints PDFs straight to paper, one file or a whole batch, without opening a view
 
 ![printtool GUI on Windows with files, a zip and a nested zip queued](docs/printtool-screenshot.png)
 
-The GUI on Windows.
+## Features
 
 - One set of settings (printer, copies, duplex, paper size, page range, fit to page) applies to a whole batch; any queued file can override it.
 - Files, folders and zips (nested zips included) can be added by button or by drag and drop; zip members are extracted only when printed.
