@@ -40,8 +40,4 @@ printtool-gui
 
 ## Acknowledgement
 
-The printer icon is "mono printer" from openclipart.org (CC0). SumatraPDF (GPLv3) prints on Windows; it is downloaded separately and not part of this repository.
-
----
-
-Created with Anthropic's Claude.
+The printer icon is [mono printer](https://openclipart.org/detail/198310/mono-printer) from openclipart.org (CC0). [SumatraPDF](https://www.sumatrapdfreader.org/) (GPLv3) prints on Windows; it is downloaded separately and not part of this repository. Created with Anthropic's Claude.

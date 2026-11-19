@@ -315,7 +315,7 @@ class MainWindow(QMainWindow):
         apply_all_btn = QPushButton("Apply these settings to all queued files")
         apply_all_btn.clicked.connect(self._apply_global_to_all)
 
-        settings_box = QGroupBox("Settings for files included next")
+        settings_box = QGroupBox("Default settings")
         settings_layout = QVBoxLayout(settings_box)
         settings_layout.addWidget(self.settings_widget)
         settings_layout.addWidget(refresh_btn)
