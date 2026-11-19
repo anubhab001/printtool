@@ -14,7 +14,7 @@ PRESETS = ["pdf", "docx", "doc", "pptx", "ppt", "xlsx", "odt", "rtf", "txt", "ht
 class FileTypesDialog(QDialog):
     def __init__(self, open_settings_file, parent=None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("File types")
+        self.setWindowTitle("Printable formats")
         current = set(settings.load_defaults()["printable_extensions"])
         self._boxes: dict[str, QCheckBox] = {}
 

@@ -422,7 +422,7 @@ class MainWindow(QMainWindow):
         self.auto_preview_action.setChecked(settings.load_auto_preview())
         self.auto_preview_action.triggered.connect(self._on_toggle_auto_preview)
         view_menu.addSeparator()
-        view_menu.addAction("File types...", self._edit_file_types)
+        view_menu.addAction("Printable formats...", self._edit_file_types)
         view_menu.addAction("Open settings file...", self._open_settings_file)
 
         advanced_menu = menu_bar.addMenu("&Advanced")
