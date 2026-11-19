@@ -7,6 +7,7 @@ from __future__ import annotations
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
+    QScrollArea,
     QLabel,
     QHBoxLayout,
     QCheckBox,
@@ -108,6 +109,30 @@ class SettingsWidget(QWidget):
         self.signature_check = QCheckBox("Signature")
         self.signature_path = ""
         self.signature_check.toggled.connect(self._choose_signature)
+        # For the whole queue.
+        self.order_combo = QComboBox()
+        self.order_combo.addItem("One file after another", "files")
+        self.order_combo.addItem("One copy of each file in turn", "copies")
+        self.order_combo.addItem("Page 1 of every file, then page 2, ...", "pages")
+        self.share_sheets_check = QCheckBox("Start a file on the back of the previous file's last sheet")
+        self.eject_check = QCheckBox("Remove the drive (e.g., a pen drive) after printing")
+        from ..core import settings as _settings
+
+        saved = _settings.load_defaults()
+        self.order_combo.setCurrentIndex(max(0, self.order_combo.findData(saved.get("print_order", "files"))))
+        self.share_sheets_check.setChecked(bool(saved.get("share_sheets", False)))
+        self.eject_check.setChecked(bool(saved.get("eject_after_print", False)))
+        self.order_combo.currentIndexChanged.connect(lambda _i: _settings.save_defaults({"print_order": self.order_combo.currentData()}))
+        self.share_sheets_check.toggled.connect(lambda on: _settings.save_defaults({"share_sheets": on}))
+        self.eject_check.toggled.connect(lambda on: _settings.save_defaults({"eject_after_print": on}))
+        # A larger, scrollable drawing of the chosen layout, so long strips
+        # (1 x 10) stay readable without the window growing.
+        self.grid_preview = QLabel()
+        self.grid_scroll = QScrollArea()
+        self.grid_scroll.setWidget(self.grid_preview)
+        self.grid_scroll.setFixedSize(64, 40)
+        self.grid_scroll.setAlignment(Qt.AlignCenter)
+        self.grid_combo.currentIndexChanged.connect(lambda _i: self._draw_preview())
 
         advanced_box = QWidget()
         advanced_layout = QFormLayout(advanced_box)
@@ -121,6 +146,12 @@ class SettingsWidget(QWidget):
             marks.addWidget(box)
         marks.addStretch()
         advanced_layout.addRow(marks)
+        order_row = QHBoxLayout()
+        order_row.addWidget(QLabel("Order"))
+        order_row.addWidget(self.order_combo, 1)
+        advanced_layout.addRow(order_row)
+        advanced_layout.addRow(self.share_sheets_check)
+        advanced_layout.addRow(self.eject_check)
         # Only for several pages per sheet.
         self._grid_lines = QWidget()
         lines_row = QHBoxLayout(self._grid_lines)
@@ -151,6 +182,7 @@ class SettingsWidget(QWidget):
         nup_row.addWidget(self.nup_spin)
         nup_row.addWidget(QLabel("Layout"))
         nup_row.addWidget(self.grid_combo)
+        nup_row.addWidget(self.grid_scroll)
         nup_row.addStretch()
         layout.addRow("Pages per sheet", nup_row)
 
@@ -163,6 +195,32 @@ class SettingsWidget(QWidget):
 
         self._sync_grids(self.nup_spin.value())
         self.load_settings(default_print_settings())
+
+    def _draw_preview(self) -> None:
+        grid = self.grid_combo.currentData()
+        if not grid:
+            return
+        cols, rows = grid
+        cw, ch = 11, 14
+        pix = QPixmap(cols * cw + 4, rows * ch + 4)
+        pix.fill(QColor("white"))
+        p = QPainter(pix)
+        font = QFont()
+        font.setPixelSize(8)
+        p.setFont(font)
+        n = self.nup_spin.value()
+        for k in range(cols * rows):
+            x, y = 2 + (k % cols) * cw, 2 + (k // cols) * ch
+            p.setPen(QColor("#aab"))
+            p.drawRect(x, y, cw - 1, ch - 1)
+            if k < n:
+                p.fillRect(x + 1, y + 1, cw - 2, ch - 2, QColor("#dfe8f6"))
+                p.setPen(QColor("#335"))
+                p.drawText(x, y, cw, ch, Qt.AlignCenter, str(k + 1))
+        p.end()
+        self.grid_preview.setPixmap(pix)
+        self.grid_preview.resize(pix.size())
+        self.grid_preview.setToolTip(f"{cols} columns \u00d7 {rows} rows")
 
     def _choose_signature(self, on: bool) -> None:
         if not on:
@@ -232,6 +290,9 @@ class SettingsWidget(QWidget):
             box.setEnabled(many)
             if not many:
                 box.setChecked(False)
+        if hasattr(self, "grid_scroll"):
+            self.grid_scroll.setVisible(many)
+            self._draw_preview()
         if hasattr(self, "_grid_lines"):
             self._grid_lines.setVisible(many)
             self.lines_frame.setVisible(many)

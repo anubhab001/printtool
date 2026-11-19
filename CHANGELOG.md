@@ -1,5 +1,11 @@
 # Changelog
 
+## Version 7
+- Sheet count beside files and pages.
+- Sort by time included, name, file size or page count, either way.
+- Advanced: Print order, starting a file on the back of the last sheet, removing the drive after printing; temporary copy on by default.
+- Scrollable layout preview; the log moves to View > Log.
+
 ## Version 6
 - "Print this" and "Print all" under the queue, beside the counts; one "Print all".
 - "Include" instead of "Add"; "Copy" with Collate beside it (active above one copy); "Sides" One, Both (long edge, the default) or Both (short edge).

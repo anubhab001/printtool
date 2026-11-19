@@ -263,3 +263,51 @@ def paper_area_cm2(paper_size: str | None, pages: int) -> float:
 def rough_consumption(pages: int) -> tuple[float, float]:
     """(estimated mL of ink, estimated kWh), both rough averages."""
     return pages * _ML_INK_PER_PAGE, pages * _KWH_PER_PAGE
+
+
+def sheets_needed(page_counts: list[int], per_sheet: int = 1, both_sides: bool = True, copies: int = 1, share: bool = False) -> int:
+    """Sheets of paper for files of `page_counts` pages: pages per sheet
+    first, then two sides per sheet; with `share`, a file may start on the
+    back of the previous file's last sheet."""
+    sides_per_sheet = 2 if both_sides else 1
+    faces = [-(-n // max(per_sheet, 1)) for n in page_counts if n > 0]
+    if share and both_sides:
+        return -(-sum(faces) // sides_per_sheet) * copies
+    return sum(-(-f // sides_per_sheet) for f in faces) * copies
+
+
+def concat_pdfs(paths: list[Path]) -> Path | None:
+    """One PDF with the pages of `paths` in order."""
+    if PdfReader is None or not paths:
+        return None
+    try:
+        writer = PdfWriter()
+        for path in paths:
+            for page in PdfReader(str(path)).pages:
+                writer.add_page(page)
+        dest = Path(tempfile.mkdtemp(prefix="printtool-join-")) / "joined.pdf"
+        with open(dest, "wb") as f:
+            writer.write(f)
+        return dest
+    except Exception:
+        return None
+
+
+def interleave_pdfs(paths: list[Path]) -> Path | None:
+    """One PDF taking page 1 of every file, then page 2 of every file that
+    has one, and so on."""
+    if PdfReader is None or not paths:
+        return None
+    try:
+        readers = [PdfReader(str(p)) for p in paths]
+        writer = PdfWriter()
+        for i in range(max(len(r.pages) for r in readers)):
+            for r in readers:
+                if i < len(r.pages):
+                    writer.add_page(r.pages[i])
+        dest = Path(tempfile.mkdtemp(prefix="printtool-interleave-")) / "interleaved.pdf"
+        with open(dest, "wb") as f:
+            writer.write(f)
+        return dest
+    except Exception:
+        return None

@@ -55,3 +55,29 @@ def test_page_numbers_and_date_are_stamped(tmp_path):
     text = PdfReader(str(out)).pages[1].extract_text()
     assert "2 / 2" in text
     assert stamp_pdf(src, date=False) is None
+
+
+def test_sheet_count():
+    from printtool.core.pages import sheets_needed
+
+    assert sheets_needed([5], 1, True) == 3
+    assert sheets_needed([5, 3], 1, True) == 5
+    assert sheets_needed([5, 3], 1, True, share=True) == 4
+    assert sheets_needed([7], 4, True) == 1
+    assert sheets_needed([2], 1, False, copies=3) == 6
+
+
+def test_pages_interleave(tmp_path):
+    from printtool.core.pages import interleave_pdfs
+
+    paths = []
+    for name, n in (("a", 2), ("b", 1)):
+        w = PdfWriter()
+        for _ in range(n):
+            w.add_blank_page(width=100 + len(paths), height=100)
+        p = tmp_path / f"{name}.pdf"
+        with p.open("wb") as fh:
+            w.write(fh)
+        paths.append(p)
+    widths = [float(pg.mediabox.width) for pg in PdfReader(str(interleave_pdfs(paths))).pages]
+    assert widths == [100, 101, 100]

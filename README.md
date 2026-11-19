@@ -1,6 +1,6 @@
 # printtool
 
-Prints PDFs straight to paper, one file or a whole batch, without opening a viewer or a print dialog per file.
+Prints files straight to paper, one file or a whole batch, without opening it in a viewer or a print dialog first; PDF and any other format the system can print.
 
 ![printtool GUI on Windows with files, a zip and a nested zip queued](docs/printtool-screenshot.png)
 
@@ -11,6 +11,7 @@ Prints PDFs straight to paper, one file or a whole batch, without opening a view
 - A folder or zip row has its own checkbox; light blue marks a group printed only in part, or a file with a page range.
 - "Print this" and "Print all" sit under the queue, with a progress bar showing the file printing now and its pages.
 - A queue can be paused, reordered, retried, or handed to the OS scheduler to print later.
+- The status line counts sheets of paper; files can be printed in turn, page by page, or sharing sheets.
 - A network printer can be included by IP address.
 
 ## Mechanism
@@ -29,7 +30,7 @@ python scripts/fetch_sumatra.py   # Windows only, once
 
 Defaults live in a hand-editable `settings.yaml` (`printtool settings-path` prints its location). The "Printable formats..." button above the queue chooses which formats count as printable; only PDF is on by default.
 
-![Printable formats window](docs/printtool-file-types.png)
+<img src="docs/printtool-file-types.png" alt="Printable formats window" width="260">
 
 ## Usage
 

@@ -14,7 +14,10 @@ from .models import Duplex, Orientation, PrintSettings
 DEFAULTS: dict = {
     "printer": None,
     "paper_size": None,
-    "buffer_copy": False,
+    "buffer_copy": True,
+    "eject_after_print": False,
+    "share_sheets": False,
+    "print_order": "files",  # files, copies, pages
     "delete_after_print": False,
     "fit_to_page": True,
     "collate": True,
@@ -38,6 +41,9 @@ _COMMENTS: dict = {
     "paper_size": 'e.g. "A4" or "Letter"; null uses the printer\'s own default.',
     "buffer_copy": "Print from a temporary copy instead of the original (protects against a USB drive pulled mid-job).",
     "delete_after_print": "Delete the original file once it has printed successfully.",
+    "eject_after_print": "Safely remove the drive the files came from (e.g., a pen drive) once all have printed.",
+    "share_sheets": "On both sides, start each file on the back of the previous file's last sheet when it has a free side.",
+    "print_order": "files (one file after another), copies (one copy of each file in turn), pages (page 1 of every file, then page 2, ...).",
     "fit_to_page": "Scale the page to fit the paper size.",
     "collate": "Collate multi-copy jobs.",
     "duplex": f"One of: {', '.join(d.value for d in Duplex)}.",

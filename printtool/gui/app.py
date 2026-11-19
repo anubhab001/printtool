@@ -35,11 +35,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ..core import device
 from ..core import archive, backend, discovery, network_printer, pages, preview, schedule as schedule_core
 from ..core import settings
 from ..core.settings import ensure_settings_file
 from ..core.cli_args import settings_to_args
-from ..core.models import JobStatus, PrintJob, PrintSettings
+from ..core.models import Duplex, JobStatus, PrintJob, PrintSettings
 from .folder_picker import FolderPickerDialog
 from .queue_list import (
     JOB_ID_ROLE,
@@ -279,12 +280,14 @@ class MainWindow(QMainWindow):
             stats_row.addWidget(b)
 
         self.sort_combo = QComboBox()
-        self.sort_combo.addItem("Time included", None)
-        self.sort_combo.addItem("Time included (reversed)", "included_reversed")
-        self.sort_combo.addItem("Name", "name")
-        self.sort_combo.addItem("Size", "size")
-        self.sort_combo.addItem("Pages", "pages")
-        self.sort_combo.addItem("Last modified", "modified")
+        self.sort_combo.addItem("Time included (older first)", None)
+        self.sort_combo.addItem("Time included (newer first)", "included_reversed")
+        self.sort_combo.addItem("Name (A to Z)", "name")
+        self.sort_combo.addItem("File size (smaller first)", "size_up")
+        self.sort_combo.addItem("File size (larger first)", "size")
+        self.sort_combo.addItem("Page count (fewer first)", "pages_up")
+        self.sort_combo.addItem("Page count (more first)", "pages")
+        self.sort_combo.addItem("Last modified (newer first)", "modified")
         self.sort_combo.currentIndexChanged.connect(lambda _: self._sort_queue())
         # Wide enough for the longest choice, so the combo never changes size.
         self.sort_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
@@ -342,22 +345,19 @@ class MainWindow(QMainWindow):
 
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
-        clear_log_btn = QPushButton("Clear log")
-        clear_log_btn.setEnabled(False)
-        clear_log_btn.clicked.connect(self.log.clear)
-        self.log.textChanged.connect(lambda: clear_log_btn.setEnabled(bool(self.log.toPlainText())))
-
-        log_header = QHBoxLayout()
-        log_header.addWidget(QLabel("Log"))
-        log_header.addStretch()
-        log_header.addWidget(clear_log_btn)
 
         right = QVBoxLayout()
         right.addWidget(settings_box)
         right.addLayout(queue_controls)
         right.addWidget(self.schedule_btn)
-        right.addLayout(log_header)
-        right.addWidget(self.log)
+        self.last_message = QLabel()
+        self.last_message.setStyleSheet("color: gray;")
+        self.last_message.setWordWrap(True)
+        self.log.textChanged.connect(
+            lambda: self.last_message.setText((self.log.toPlainText().splitlines() or [""])[-1])
+        )
+        right.addWidget(self.last_message)
+        right.addStretch()
 
         root = QWidget()
         root_layout = QHBoxLayout(root)
@@ -418,6 +418,7 @@ class MainWindow(QMainWindow):
         queue_menu.addAction("Clear all", self._clear_all)
 
         view_menu = menu_bar.addMenu("&View")
+        view_menu.addAction("Log...", self._show_log)
         view_menu.addAction("Refresh printers", self._refresh_printers)
         view_menu.addAction("Include network printer by IP...", self._add_network_printer)
         view_menu.addSeparator()
@@ -606,6 +607,37 @@ class MainWindow(QMainWindow):
             self._page_count_cache[job.job_id] = count
         return self._page_count_cache[job.job_id]
 
+    def _show_log(self) -> None:
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Log")
+        dialog.resize(640, 380)
+        view = QPlainTextEdit(self.log.toPlainText())
+        view.setReadOnly(True)
+        clear = QPushButton("Clear log")
+        clear.clicked.connect(lambda: (self.log.clear(), view.clear()))
+        layout = QVBoxLayout(dialog)
+        layout.addWidget(view)
+        layout.addWidget(clear)
+        dialog.exec()
+
+    def _sheets(self, jobs) -> int:
+        """Sheets of paper the queue will use, from each file's pages per
+        sheet, sides and copies."""
+        share = self.settings_widget.share_sheets_check.isChecked()
+        total = 0
+        run: list[int] = []
+        for job in jobs:
+            n = self._job_pages(job) or 0
+            st = job.settings
+            both = st.duplex != Duplex.NONE
+            if share and both:
+                run.append(-(-n // max(st.pages_per_sheet, 1)) * st.copies)
+            else:
+                total += pages.sheets_needed([n], st.pages_per_sheet, both, st.copies)
+        if run:
+            total += -(-sum(run) // 2)
+        return total
+
     def _update_queue_stats(self) -> None:
         jobs = list(self.jobs.values())
         self.print_all_btn.setEnabled(bool(jobs))
@@ -616,7 +648,8 @@ class MainWindow(QMainWindow):
             return
 
         total_pages = sum(p for p in (self._job_pages(j) for j in jobs) if p is not None)
-        text = f"{len(jobs)} {_n(len(jobs), 'file')}, {total_pages} {_n(total_pages, 'page')}"
+        sheets = self._sheets(jobs)
+        text = f"{len(jobs)} {_n(len(jobs), 'file')}, {total_pages} {_n(total_pages, 'page')}, {sheets} {_n(sheets, 'sheet')}"
 
         if self._print_run_started is not None:
             done = [j for j in jobs if j.status in (JobStatus.DONE, JobStatus.FAILED, JobStatus.CANCELLED)]
@@ -793,14 +826,15 @@ class MainWindow(QMainWindow):
                 return (0, -job.seq)
             if key == "name":
                 return (0, job.path.name.lower())
-            if key == "size":
+            if key in ("size", "size_up"):
                 try:
-                    return (0, -job.path.stat().st_size)
+                    size = job.path.stat().st_size
                 except OSError:
                     return (1, 0)
-            if key == "pages":
-                pages_count = self._job_pages(job)
-                return (0, -(pages_count or 0))
+                return (0, size if key == "size_up" else -size)
+            if key in ("pages", "pages_up"):
+                pages_count = self._job_pages(job) or 0
+                return (0, pages_count if key == "pages_up" else -pages_count)
             if key == "modified":
                 try:
                     return (0, -job.path.stat().st_mtime)
@@ -1144,6 +1178,19 @@ class MainWindow(QMainWindow):
                     calls.append(dataclasses.replace(job, settings=job.settings.clone(copies=1)))
         return calls
 
+    def _joined(self, jobs: list[PrintJob], join, what: str) -> list[PrintJob]:
+        """PDF files printed as one (by `join`), with the first one's
+        settings; other files follow as they are."""
+        pdfs = [j for j in jobs if j.path.suffix.lower() == ".pdf" and j.pending_extract is None]
+        if len(pdfs) < 2:
+            return jobs
+        path = join([j.path for j in pdfs])
+        if path is None:
+            return jobs
+        self.log.appendPlainText(f"Printing {len(pdfs)} files as one ({what}).")
+        merged = PrintJob(path=path, settings=pdfs[0].settings.clone(buffer_copy=False, delete_after_print=False))
+        return [merged] + [j for j in jobs if j not in pdfs]
+
     def _bracket_blank_pages(self, jobs: list[PrintJob]) -> list[PrintJob]:
         mode = settings.load_blank_page_insertion()
         if mode == "none" or not jobs:
@@ -1199,8 +1246,16 @@ class MainWindow(QMainWindow):
                 if job.pending_extract is None and pages.mostly_blank(job.path):
                     self.log.appendPlainText(f"Warning: {job.path.name} looks mostly blank.")
 
-        if self.interleave_copies_action.isChecked() and len(jobs) > 1:
+        order = self.settings_widget.order_combo.currentData()
+        if (order == "copies" or self.interleave_copies_action.isChecked()) and len(jobs) > 1:
             jobs = self._interleave_copies(jobs)
+        elif order == "pages" and len(jobs) > 1:
+            jobs = self._joined(jobs, pages.interleave_pdfs, "pages of all files in turn")
+        if self.settings_widget.share_sheets_check.isChecked() and len(jobs) > 1 and order != "pages":
+            jobs = self._joined(jobs, pages.concat_pdfs, "files sharing sheets")
+        self._eject_after = (
+            device.removable_drives([j.path for j in jobs]) if self.settings_widget.eject_check.isChecked() else []
+        )
 
         jobs = self._bracket_blank_pages(jobs)
 
@@ -1257,6 +1312,10 @@ class MainWindow(QMainWindow):
 
     def _on_all_done(self) -> None:
         self.log.appendPlainText("Done.")
+        for drive in getattr(self, "_eject_after", []):
+            ok = device.eject(drive)
+            self.log.appendPlainText(f"{'Removed' if ok else 'Could not remove'} {drive}")
+        self._eject_after = []
         self.progress_bar.hide()
         self.print_btn.setEnabled(True)
         self.pause_btn.setEnabled(False)
