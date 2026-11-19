@@ -119,17 +119,19 @@ def mirror_pdf(path: Path, horizontal: bool, vertical: bool) -> Path | None:
 
 
 def grids_for(per_sheet: int) -> list[tuple[int, int]]:
-    """(columns, rows) layouts that hold `per_sheet` pages with less than a
-    row or column to spare, closest to square first; for a prime count such
-    as 7 this gives 2 x 4 and 4 x 2 with one cell left empty."""
+    """(columns, rows) layouts for `per_sheet` pages, closest to square
+    first: every exact fit, and for a prime count also the layouts of the
+    next number with one cell left blank (7: 2 x 4, 4 x 2, 1 x 7, 7 x 1)."""
     if per_sheet <= 1:
         return [(1, 1)]
-    out = []
-    for cols in range(1, per_sheet + 1):
-        rows = -(-per_sheet // cols)
-        if cols * rows - per_sheet < min(cols, rows):
-            out.append((cols, rows))
-    return sorted(set(out), key=lambda g: (abs(g[0] - g[1]), g[1] < g[0]))
+
+    def exact(n: int) -> set[tuple[int, int]]:
+        return {(c, n // c) for c in range(1, n + 1) if n % c == 0}
+
+    out = exact(per_sheet)
+    if len(out) == 2 and per_sheet > 2:
+        out |= {g for g in exact(per_sheet + 1) if min(g) > 1}
+    return sorted(out, key=lambda g: (abs(g[0] - g[1]), g[1] < g[0]))
 
 
 def nup_pdf(path: Path, per_sheet: int, grid: tuple[int, int] | None = None, lines: tuple[str, ...] = ()) -> Path | None:
