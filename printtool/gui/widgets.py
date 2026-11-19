@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QLabel,
     QHBoxLayout,
     QCheckBox,
     QComboBox,
@@ -34,13 +35,19 @@ class SettingsWidget(QWidget):
         self.copies_spin.setValue(1)
 
         self.duplex_combo = QComboBox()
-        duplex_labels = {Duplex.NONE: "One side", Duplex.LONG_EDGE: "Both sides (long edge)", Duplex.SHORT_EDGE: "Both sides (short edge)"}
+        duplex_labels = {Duplex.NONE: "One", Duplex.LONG_EDGE: "Both (long edge)", Duplex.SHORT_EDGE: "Both (short edge)"}
         for d in Duplex:
             self.duplex_combo.addItem(duplex_labels[d], d)
 
-        self.nup_combo = QComboBox()
-        for n in (1, 2, 4, 6, 9, 16):
-            self.nup_combo.addItem(str(n), n)
+        # Pages per sheet: A number (1 by default); above 1 the grid choice
+        # opens with the layouts that fit that number.
+        self.nup_spin = QSpinBox()
+        self.nup_spin.setRange(1, 16)
+        self.nup_spin.setValue(1)
+        self.grid_combo = QComboBox()
+        self.grid_combo.setEnabled(False)
+        self.nup_spin.valueChanged.connect(self._sync_grids)
+        self._sync_grids(1)
 
         self.paper_edit = QLineEdit()
         self.paper_edit.setPlaceholderText("e.g., A4, Letter (blank = printer default)")
@@ -104,7 +111,11 @@ class SettingsWidget(QWidget):
         copy_row.addWidget(self.collate_check)
         layout.addRow("Copy", copy_row)
         layout.addRow("Sides", self.duplex_combo)
-        layout.addRow("Pages per sheet", self.nup_combo)
+        nup_row = QHBoxLayout()
+        nup_row.addWidget(self.nup_spin, 1)
+        nup_row.addWidget(QLabel("Grid"))
+        nup_row.addWidget(self.grid_combo, 1)
+        layout.addRow("Pages per sheet", nup_row)
         layout.addRow("Paper size", self.paper_edit)
         layout.addRow("Orientation", self.orientation_combo)
         layout.addRow("Page range", self.pages_edit)
@@ -113,6 +124,14 @@ class SettingsWidget(QWidget):
         layout.addRow(advanced_box)
 
         self.load_settings(default_print_settings())
+
+    def _sync_grids(self, per_sheet: int) -> None:
+        from ..core.pages import grids_for
+
+        self.grid_combo.clear()
+        for cols, rows in grids_for(per_sheet):
+            self.grid_combo.addItem(f"{cols} \u00d7 {rows}", (cols, rows))
+        self.grid_combo.setEnabled(per_sheet > 1)
 
     def _sync_collate(self, copies: int) -> None:
         many = copies > 1
@@ -148,7 +167,8 @@ class SettingsWidget(QWidget):
             delete_after_print=self.delete_after_print_check.isChecked(),
             mirror_lr=self.mirror_lr_check.isChecked(),
             mirror_tb=self.mirror_tb_check.isChecked(),
-            pages_per_sheet=self.nup_combo.currentData(),
+            pages_per_sheet=self.nup_spin.value(),
+            pages_grid=self.grid_combo.currentData() if self.nup_spin.value() > 1 else None,
         )
 
     def load_settings(self, settings: PrintSettings) -> None:
@@ -167,4 +187,6 @@ class SettingsWidget(QWidget):
         self.delete_after_print_check.setChecked(settings.delete_after_print)
         self.mirror_lr_check.setChecked(settings.mirror_lr)
         self.mirror_tb_check.setChecked(settings.mirror_tb)
-        self.nup_combo.setCurrentIndex(max(0, self.nup_combo.findData(settings.pages_per_sheet)))
+        self.nup_spin.setValue(settings.pages_per_sheet)
+        if settings.pages_grid:
+            self.grid_combo.setCurrentIndex(max(0, self.grid_combo.findData(settings.pages_grid)))

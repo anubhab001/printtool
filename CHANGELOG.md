@@ -2,7 +2,8 @@
 
 ## Version 6
 - "Print this" and "Print all" under the queue, beside the counts; one "Print all".
-- "Include" instead of "Add"; "Copy", "Sides" (default both sides, long edge), pages per sheet (1 -- 16).
+- "Include" instead of "Add"; "Copy" with Collate beside it (active above one copy); "Sides" One, Both (long edge, the default) or Both (short edge).
+- Pages per sheet (1 -- 16) with a grid choice of the layouts that fit, e.g., 2 × 4 for 7.
 - "Time included" sort and its reverse; singular "file"/"page" for 0 and 1; "e.g.,".
 - Grey tree lines with rounded corners for folders and zips.
 

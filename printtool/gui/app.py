@@ -118,7 +118,7 @@ class PrintWorker(QThread):
                 preview.open_in_default_viewer(job.path)
             print_path = job.path
             if job.settings.pages_per_sheet > 1:
-                laid_out = pages.nup_pdf(print_path, job.settings.pages_per_sheet)
+                laid_out = pages.nup_pdf(print_path, job.settings.pages_per_sheet, job.settings.pages_grid)
                 if laid_out is not None:
                     print_path = laid_out
             if self._stamp_timestamp:

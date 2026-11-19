@@ -118,22 +118,32 @@ def mirror_pdf(path: Path, horizontal: bool, vertical: bool) -> Path | None:
         return None
 
 
-# pages per sheet -> (columns, rows) on a portrait sheet
-NUP_GRIDS = {1: (1, 1), 2: (1, 2), 4: (2, 2), 6: (2, 3), 9: (3, 3), 16: (4, 4)}
+def grids_for(per_sheet: int) -> list[tuple[int, int]]:
+    """(columns, rows) layouts that hold `per_sheet` pages with less than a
+    row or column to spare, closest to square first; for a prime count such
+    as 7 this gives 2 x 4 and 4 x 2 with one cell left empty."""
+    if per_sheet <= 1:
+        return [(1, 1)]
+    out = []
+    for cols in range(1, per_sheet + 1):
+        rows = -(-per_sheet // cols)
+        if cols * rows - per_sheet < min(cols, rows):
+            out.append((cols, rows))
+    return sorted(set(out), key=lambda g: (abs(g[0] - g[1]), g[1] < g[0]))
 
 
-def nup_pdf(path: Path, per_sheet: int) -> Path | None:
+def nup_pdf(path: Path, per_sheet: int, grid: tuple[int, int] | None = None) -> Path | None:
     """A copy of `path` with `per_sheet` pages scaled into a grid on each
     sheet, reading left to right, top to bottom. None when there is
     nothing to do (one per sheet, pypdf missing, or not a PDF)."""
-    if PdfReader is None or per_sheet <= 1 or per_sheet not in NUP_GRIDS or path.suffix.lower() != ".pdf":
+    if PdfReader is None or per_sheet <= 1 or path.suffix.lower() != ".pdf":
         return None
     try:
         from pypdf import PageObject
 
         reader = PdfReader(str(path))
         sheet_w, sheet_h = float(reader.pages[0].mediabox.width), float(reader.pages[0].mediabox.height)
-        cols, rows = NUP_GRIDS[per_sheet]
+        cols, rows = grid if grid and grid[0] * grid[1] >= per_sheet else grids_for(per_sheet)[0]
         cell_w, cell_h = sheet_w / cols, sheet_h / rows
         writer = PdfWriter()
         for start in range(0, len(reader.pages), per_sheet):
