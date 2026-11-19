@@ -306,10 +306,22 @@ class MainWindow(QMainWindow):
         left.addLayout(queue_header)
         left.addWidget(self.file_list)
         left.addLayout(stats_row)
+        # A short bar with the file printing now beside it (its own name
+        # only, shortened in the middle when long).
         self.progress_bar = QProgressBar()
         self.progress_bar.setTextVisible(True)
-        self.progress_bar.hide()
-        left.addWidget(self.progress_bar)
+        self.progress_bar.setFixedWidth(220)
+        self.now_printing = QLabel()
+        self.now_printing.setStyleSheet("color: gray;")
+        self._progress_row = QWidget()
+        pr = QHBoxLayout(self._progress_row)
+        pr.setContentsMargins(0, 0, 0, 0)
+        pr.addWidget(self.progress_bar)
+        pr.addWidget(self.now_printing, 1)
+        self._progress_row.hide()
+        self.progress_bar.show = self._progress_row.show
+        self.progress_bar.hide = self._progress_row.hide
+        left.addWidget(self._progress_row)
         left.addWidget(self.remove_zone)
         left.addLayout(file_buttons)
 
@@ -347,22 +359,9 @@ class MainWindow(QMainWindow):
         self.log.setReadOnly(True)
 
         right = QVBoxLayout()
-        right.addWidget(settings_box)
+        right.addWidget(settings_box, 1)
         right.addLayout(queue_controls)
         right.addWidget(self.schedule_btn)
-        self.last_message = QLabel()
-        self.last_message.setStyleSheet("color: gray;")
-        self.last_message.setWordWrap(True)
-        # Only the latest line (the file printed, printing or next), with its time.
-        self.log.textChanged.connect(
-            lambda: self.last_message.setText(
-                f"{datetime.now():%H:%M:%S}  {(self.log.toPlainText().splitlines() or [''])[-1]}"
-                if self.log.toPlainText()
-                else ""
-            )
-        )
-        right.addWidget(self.last_message)
-        right.addStretch()
 
         root = QWidget()
         root_layout = QHBoxLayout(root)
@@ -1324,6 +1323,9 @@ class MainWindow(QMainWindow):
         if job is not None and status_value == JobStatus.PRINTING.value:
             pages_note = f"pages {job.settings.page_range}" if job.settings.page_range else "all pages"
             self.progress_bar.setFormat("%v/%m")
+            fm = self.now_printing.fontMetrics()
+            self.now_printing.setText(fm.elidedText(job.path.name, Qt.ElideMiddle, max(80, self.now_printing.width())))
+            self.now_printing.setToolTip(job.path.name)
         if job is not None and status_value != JobStatus.PRINTING.value:
             self.log.appendPlainText(
                 f"[{status_value.upper()}] {job.path}{(' - ' + message) if message else ''}"
