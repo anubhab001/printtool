@@ -54,7 +54,7 @@ class SettingsWidget(QWidget):
         self.grid_combo.setEnabled(False)
         self.lines_rows = QCheckBox("Between rows")
         self.lines_cols = QCheckBox("Between columns")
-        self.lines_frame = QCheckBox("Around each page")
+        self.lines_frame = QCheckBox("Frame each page")
         for box in (self.lines_rows, self.lines_cols, self.lines_frame):
             box.setEnabled(False)
             box.toggled.connect(lambda _on: self._sync_grids(self.nup_spin.value(), keep=True))
@@ -108,6 +108,16 @@ class SettingsWidget(QWidget):
         advanced_layout.addRow(self.delete_after_print_check)
         advanced_layout.addRow(self.mirror_lr_check)
         advanced_layout.addRow(self.mirror_tb_check)
+        # Only for several pages per sheet.
+        self._grid_lines = QWidget()
+        lines_row = QHBoxLayout(self._grid_lines)
+        lines_row.setContentsMargins(0, 0, 0, 0)
+        lines_row.addWidget(QLabel("Grid lines"))
+        lines_row.addWidget(self.lines_rows)
+        lines_row.addWidget(self.lines_cols)
+        lines_row.addStretch()
+        advanced_layout.addRow(self._grid_lines)
+        advanced_layout.addRow(self.lines_frame)
         advanced_box.setVisible(False)
 
         def _toggle_advanced(checked: bool) -> None:
@@ -130,11 +140,7 @@ class SettingsWidget(QWidget):
         nup_row.addWidget(self.grid_combo)
         nup_row.addStretch()
         layout.addRow("Pages per sheet", nup_row)
-        lines_row = QHBoxLayout()
-        for box in (self.lines_rows, self.lines_cols, self.lines_frame):
-            lines_row.addWidget(box)
-        lines_row.addStretch()
-        layout.addRow("Lines", lines_row)
+
         layout.addRow("Paper size", self.paper_edit)
         layout.addRow("Orientation", self.orientation_combo)
         layout.addRow("Page range", self.pages_edit)
@@ -142,6 +148,7 @@ class SettingsWidget(QWidget):
         layout.addRow(advanced_toggle)
         layout.addRow(advanced_box)
 
+        self._sync_grids(self.nup_spin.value())
         self.load_settings(default_print_settings())
 
     def _lines(self) -> tuple[str, ...]:
@@ -198,6 +205,11 @@ class SettingsWidget(QWidget):
         self.grid_combo.setEnabled(many)
         for box in (self.lines_rows, self.lines_cols, self.lines_frame):
             box.setEnabled(many)
+            if not many:
+                box.setChecked(False)
+        if hasattr(self, "_grid_lines"):
+            self._grid_lines.setVisible(many)
+            self.lines_frame.setVisible(many)
 
     def _sync_collate(self, copies: int) -> None:
         many = copies > 1
