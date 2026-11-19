@@ -4,7 +4,8 @@
 - Sheet count beside files and pages.
 - Sort by time included, name, file size or page count, either way.
 - Advanced: Print order, starting a file on the back of the last sheet, removing the drive after printing; temporary copy on by default.
-- Scrollable layout preview; the log moves to View > Log.
+- Layouts drawn to scale in a scrolling list; the last message replaces the log panel (full log under View > Log); no toolbar.
+- Subfolders show as their own rows, as nested zips do.
 
 ## Version 6
 - "Print this" and "Print all" under the queue, beside the counts; one "Print all".

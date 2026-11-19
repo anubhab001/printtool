@@ -353,8 +353,13 @@ class MainWindow(QMainWindow):
         self.last_message = QLabel()
         self.last_message.setStyleSheet("color: gray;")
         self.last_message.setWordWrap(True)
+        # Only the latest line (the file printed, printing or next), with its time.
         self.log.textChanged.connect(
-            lambda: self.last_message.setText((self.log.toPlainText().splitlines() or [""])[-1])
+            lambda: self.last_message.setText(
+                f"{datetime.now():%H:%M:%S}  {(self.log.toPlainText().splitlines() or [''])[-1]}"
+                if self.log.toPlainText()
+                else ""
+            )
         )
         right.addWidget(self.last_message)
         right.addStretch()
@@ -493,9 +498,10 @@ class MainWindow(QMainWindow):
 
     def _init_toolbar(self) -> None:
         style = self.style()
+        # Not shown: The buttons under the queue do the same. The actions are
+        # kept for the menus and for enabling with the selection.
         toolbar = QToolBar("Main")
-        toolbar.setMovable(False)
-        self.addToolBar(toolbar)
+        self._actions_holder = toolbar
 
         toolbar.addAction(style.standardIcon(QStyle.SP_FileDialogNewFolder), "Include files...", self._add_files)
         toolbar.addAction(style.standardIcon(QStyle.SP_DirOpenIcon), "Include folder...", self._add_folder)
@@ -796,15 +802,29 @@ class MainWindow(QMainWindow):
         header = self._make_group_header(self.style().standardIcon(QStyle.SP_DirIcon), str(folder))
         rows = [header]
         global_settings = self.settings_widget.to_settings()
-        for path in files:
+        dir_icon = self.style().standardIcon(QStyle.SP_DirIcon)
+        # Subfolders get rows of their own, as nested zips do: each level is
+        # indented further, files directly in a folder before its subfolders.
+        def rel_of(path: Path) -> Path:
+            try:
+                return path.relative_to(folder)
+            except ValueError:
+                return Path(path.name)
+
+        ordered = sorted(files, key=lambda f: (rel_of(f).parent.parts, rel_of(f).name.lower()))
+        opened: tuple[str, ...] = ()
+        for path in ordered:
+            parts = rel_of(path).parent.parts
+            common = 0
+            while common < min(len(parts), len(opened)) and parts[common] == opened[common]:
+                common += 1
+            for depth in range(common, len(parts)):
+                rows.append(self._make_group_header(dir_icon, _INDENT * (depth + 1) + parts[depth], nested=True))
+            opened = parts
             job = PrintJob(path=path, settings=global_settings.clone())
             self.jobs[job.job_id] = job
             item = self._make_item(job)
-            try:
-                rel = path.relative_to(folder)
-            except ValueError:
-                rel = Path(path.name)
-            item.setText(_INDENT * len(rel.parts) + str(rel))
+            item.setText(_INDENT * (len(parts) + 1) + path.name)
             self.file_list.addItem(item)
             rows.append(item)
         for item in rows:
@@ -1303,7 +1323,7 @@ class MainWindow(QMainWindow):
         self._refresh_item_text(job_id)
         if job is not None and status_value == JobStatus.PRINTING.value:
             pages_note = f"pages {job.settings.page_range}" if job.settings.page_range else "all pages"
-            self.progress_bar.setFormat(f"%v/%m  {job.path.name} ({pages_note})")
+            self.progress_bar.setFormat("%v/%m")
         if job is not None and status_value != JobStatus.PRINTING.value:
             self.log.appendPlainText(
                 f"[{status_value.upper()}] {job.path}{(' - ' + message) if message else ''}"
