@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QHBoxLayout,
     QCheckBox,
     QComboBox,
     QFormLayout,
@@ -55,8 +56,11 @@ class SettingsWidget(QWidget):
         self.fit_check = QCheckBox("Fit to page")
         self.fit_check.setChecked(True)
 
+        # Collate only matters with more than one copy: Off for one copy,
+        # switched on (and preset) as soon as the count goes above one.
         self.collate_check = QCheckBox("Collate")
-        self.collate_check.setChecked(True)
+        self.collate_check.setToolTip("With several copies, print whole sets (1-2-3, 1-2-3) instead of 1-1, 2-2, 3-3.")
+        self.copies_spin.valueChanged.connect(self._sync_collate)
 
         self.buffer_copy_check = QCheckBox("Copy to a temporary file before printing")
         self.buffer_copy_check.setToolTip(
@@ -95,18 +99,28 @@ class SettingsWidget(QWidget):
 
         layout = QFormLayout(self)
         layout.addRow("Printer", self.printer_combo)
-        layout.addRow("Copy", self.copies_spin)
+        copy_row = QHBoxLayout()
+        copy_row.addWidget(self.copies_spin, 1)
+        copy_row.addWidget(self.collate_check)
+        layout.addRow("Copy", copy_row)
         layout.addRow("Sides", self.duplex_combo)
         layout.addRow("Pages per sheet", self.nup_combo)
         layout.addRow("Paper size", self.paper_edit)
         layout.addRow("Orientation", self.orientation_combo)
         layout.addRow("Page range", self.pages_edit)
         layout.addRow(self.fit_check)
-        layout.addRow(self.collate_check)
         layout.addRow(advanced_toggle)
         layout.addRow(advanced_box)
 
         self.load_settings(default_print_settings())
+
+    def _sync_collate(self, copies: int) -> None:
+        many = copies > 1
+        if many and not self.collate_check.isEnabled():
+            self.collate_check.setChecked(True)
+        if not many:
+            self.collate_check.setChecked(False)
+        self.collate_check.setEnabled(many)
 
     def refresh_printers(self, printers: list[str], default: str | None) -> None:
         current = self.printer_combo.currentData()
@@ -129,7 +143,7 @@ class SettingsWidget(QWidget):
             orientation=self.orientation_combo.currentData(),
             page_range=self.pages_edit.text().strip() or None,
             fit_to_page=self.fit_check.isChecked(),
-            collate=self.collate_check.isChecked(),
+            collate=self.collate_check.isChecked() if self.copies_spin.value() > 1 else True,
             buffer_copy=self.buffer_copy_check.isChecked(),
             delete_after_print=self.delete_after_print_check.isChecked(),
             mirror_lr=self.mirror_lr_check.isChecked(),
@@ -146,7 +160,9 @@ class SettingsWidget(QWidget):
         self.orientation_combo.setCurrentIndex(self.orientation_combo.findData(settings.orientation))
         self.pages_edit.setText(settings.page_range or "")
         self.fit_check.setChecked(settings.fit_to_page)
-        self.collate_check.setChecked(settings.collate)
+        many = self.copies_spin.value() > 1
+        self.collate_check.setEnabled(many)
+        self.collate_check.setChecked(settings.collate and many)
         self.buffer_copy_check.setChecked(settings.buffer_copy)
         self.delete_after_print_check.setChecked(settings.delete_after_print)
         self.mirror_lr_check.setChecked(settings.mirror_lr)
