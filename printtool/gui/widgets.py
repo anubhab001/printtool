@@ -43,12 +43,14 @@ class SettingsWidget(QWidget):
         # Pages per sheet: A number (1 by default); above 1 the grid choice
         # opens with the layouts that fit that number.
         self.nup_spin = QSpinBox()
-        self.nup_spin.setRange(1, 16)
+        self.nup_spin.setRange(1, 10)
+        self.nup_spin.setFixedWidth(84)
         self.nup_spin.setValue(1)
         # Each layout is shown as a small drawing of the sheet, with its
         # pages numbered in reading order.
         self.grid_combo = QComboBox()
-        self.grid_combo.setIconSize(QSize(34, 46))
+        self.grid_combo.setIconSize(QSize(18, 22))
+        self.grid_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         self.grid_combo.setEnabled(False)
         self.lines_rows = QCheckBox("Between rows")
         self.lines_cols = QCheckBox("Between columns")
@@ -115,6 +117,7 @@ class SettingsWidget(QWidget):
         advanced_toggle.toggled.connect(_toggle_advanced)
 
         layout = QFormLayout(self)
+        layout.setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         layout.addRow("Printer", self.printer_combo)
         copy_row = QHBoxLayout()
         copy_row.addWidget(self.copies_spin, 1)
@@ -122,9 +125,10 @@ class SettingsWidget(QWidget):
         layout.addRow("Copy", copy_row)
         layout.addRow("Sides", self.duplex_combo)
         nup_row = QHBoxLayout()
-        nup_row.addWidget(self.nup_spin, 1)
+        nup_row.addWidget(self.nup_spin)
         nup_row.addWidget(QLabel("Layout"))
-        nup_row.addWidget(self.grid_combo, 1)
+        nup_row.addWidget(self.grid_combo)
+        nup_row.addStretch()
         layout.addRow("Pages per sheet", nup_row)
         lines_row = QHBoxLayout()
         for box in (self.lines_rows, self.lines_cols, self.lines_frame):
@@ -146,7 +150,7 @@ class SettingsWidget(QWidget):
     def _sheet_icon(self, per_sheet: int, cols: int, rows: int) -> QIcon:
         """A portrait sheet with its cells, numbered in reading order, and
         the chosen lines."""
-        w, h = 34, 46
+        w, h = 18, 22
         pix = QPixmap(w, h)
         pix.fill(QColor("white"))
         p = QPainter(pix)

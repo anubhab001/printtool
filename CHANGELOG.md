@@ -3,7 +3,7 @@
 ## Version 6
 - "Print this" and "Print all" under the queue, beside the counts; one "Print all".
 - "Include" instead of "Add"; "Copy" with Collate beside it (active above one copy); "Sides" One, Both (long edge, the default) or Both (short edge).
-- Pages per sheet (1 -- 16) with every layout that fits (4 as 2 × 2, 1 × 4 or 4 × 1; 7 as 2 × 4), each shown as a small drawing of the sheet; optional lines between rows, between columns or around each page; the date stamp shrinks with its page.
+- Pages per sheet (1 -- 10) with every layout that fits (4 as 2 × 2, 1 × 4 or 4 × 1; 7 as 2 × 4), each shown as a small drawing of the sheet; optional lines between rows, between columns or around each page; the date stamp shrinks with its page.
 - "Time included" sort and its reverse; singular "file"/"page" for 0 and 1; "e.g.,".
 - Grey tree lines with rounded corners for folders and zips.
 
