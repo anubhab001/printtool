@@ -117,14 +117,18 @@ class PrintWorker(QThread):
             if self._auto_preview:
                 preview.open_in_default_viewer(job.path)
             print_path = job.path
-            if job.settings.pages_per_sheet > 1:
-                laid_out = pages.nup_pdf(print_path, job.settings.pages_per_sheet, job.settings.pages_grid)
-                if laid_out is not None:
-                    print_path = laid_out
+            # The stamp goes on each original page first, so on a sheet of
+            # several pages it shrinks along with its page.
             if self._stamp_timestamp:
                 stamped = pages.stamp_pdf(print_path)
                 if stamped is not None:
                     print_path = stamped
+            if job.settings.pages_per_sheet > 1:
+                laid_out = pages.nup_pdf(
+                    print_path, job.settings.pages_per_sheet, job.settings.pages_grid, job.settings.pages_lines
+                )
+                if laid_out is not None:
+                    print_path = laid_out
             result = backend.print_file(print_path, job.settings)
             job.status = JobStatus.DONE if result.success else JobStatus.FAILED
             self.job_status.emit(job.job_id, job.status.value, result.message)

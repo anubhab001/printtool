@@ -40,6 +40,9 @@ class PrintSettings:
     mirror_tb: bool = False  # mirror top-bottom before printing (PDF only)
     pages_per_sheet: int = 1  # PDF pages laid out on one side of a sheet
     pages_grid: tuple[int, int] | None = None  # (columns, rows); None picks the closest fit
+    # Lines drawn on a sheet of several pages: any of "rows" (between rows),
+    # "columns" (between columns), "frame" (around each page).
+    pages_lines: tuple[str, ...] = ()
 
     def clone(self, **overrides) -> "PrintSettings":
         data = {
@@ -57,6 +60,7 @@ class PrintSettings:
             "mirror_tb": self.mirror_tb,
             "pages_per_sheet": self.pages_per_sheet,
             "pages_grid": self.pages_grid,
+            "pages_lines": list(self.pages_lines),
         }
         data.update(overrides)
         return PrintSettings(**data)

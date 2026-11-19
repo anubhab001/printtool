@@ -132,9 +132,10 @@ def grids_for(per_sheet: int) -> list[tuple[int, int]]:
     return sorted(set(out), key=lambda g: (abs(g[0] - g[1]), g[1] < g[0]))
 
 
-def nup_pdf(path: Path, per_sheet: int, grid: tuple[int, int] | None = None) -> Path | None:
+def nup_pdf(path: Path, per_sheet: int, grid: tuple[int, int] | None = None, lines: tuple[str, ...] = ()) -> Path | None:
     """A copy of `path` with `per_sheet` pages scaled into a grid on each
-    sheet, reading left to right, top to bottom. None when there is
+    sheet, reading left to right, top to bottom, with optional lines
+    between rows, between columns, or around each page. None when there is
     nothing to do (one per sheet, pypdf missing, or not a PDF)."""
     if PdfReader is None or per_sheet <= 1 or path.suffix.lower() != ".pdf":
         return None
@@ -155,6 +156,8 @@ def nup_pdf(path: Path, per_sheet: int, grid: tuple[int, int] | None = None) -> 
                 tx = col * cell_w + (cell_w - w * scale) / 2
                 ty = sheet_h - (row + 1) * cell_h + (cell_h - h * scale) / 2
                 sheet.merge_transformed_page(page, Transformation().scale(scale).translate(tx, ty))
+            if lines:
+                sheet.merge_page(_grid_lines(sheet_w, sheet_h, cols, rows, lines))
             writer.add_page(sheet)
         dest = Path(tempfile.mkdtemp(prefix="printtool-nup-")) / path.name
         with open(dest, "wb") as f:
@@ -162,6 +165,31 @@ def nup_pdf(path: Path, per_sheet: int, grid: tuple[int, int] | None = None) -> 
         return dest
     except Exception:
         return None
+
+
+def _grid_lines(width: float, height: float, cols: int, rows: int, lines) -> "PageObject":
+    """A transparent page with thin grey lines for a grid of cells."""
+    from reportlab.pdfgen import canvas
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=(width, height))
+    c.setStrokeGray(0.45)
+    c.setLineWidth(0.6)
+    cw, ch = width / cols, height / rows
+    if "columns" in lines:
+        for i in range(1, cols):
+            c.line(i * cw, 0, i * cw, height)
+    if "rows" in lines:
+        for j in range(1, rows):
+            c.line(0, j * ch, width, j * ch)
+    if "frame" in lines:
+        inset = 4
+        for i in range(cols):
+            for j in range(rows):
+                c.rect(i * cw + inset, j * ch + inset, cw - 2 * inset, ch - 2 * inset)
+    c.save()
+    buf.seek(0)
+    return PdfReader(buf).pages[0]
 
 
 def stamp_pdf(path: Path) -> Path | None:

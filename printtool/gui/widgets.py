@@ -4,7 +4,8 @@ and inside the per-file override dialog, so the two never drift apart.
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSize, Qt
+from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QLabel,
     QHBoxLayout,
@@ -44,8 +45,17 @@ class SettingsWidget(QWidget):
         self.nup_spin = QSpinBox()
         self.nup_spin.setRange(1, 16)
         self.nup_spin.setValue(1)
+        # Each layout is shown as a small drawing of the sheet, with its
+        # pages numbered in reading order.
         self.grid_combo = QComboBox()
+        self.grid_combo.setIconSize(QSize(34, 46))
         self.grid_combo.setEnabled(False)
+        self.lines_rows = QCheckBox("Between rows")
+        self.lines_cols = QCheckBox("Between columns")
+        self.lines_frame = QCheckBox("Around each page")
+        for box in (self.lines_rows, self.lines_cols, self.lines_frame):
+            box.setEnabled(False)
+            box.toggled.connect(lambda _on: self._sync_grids(self.nup_spin.value(), keep=True))
         self.nup_spin.valueChanged.connect(self._sync_grids)
         self._sync_grids(1)
 
@@ -113,9 +123,14 @@ class SettingsWidget(QWidget):
         layout.addRow("Sides", self.duplex_combo)
         nup_row = QHBoxLayout()
         nup_row.addWidget(self.nup_spin, 1)
-        nup_row.addWidget(QLabel("Grid"))
+        nup_row.addWidget(QLabel("Layout"))
         nup_row.addWidget(self.grid_combo, 1)
         layout.addRow("Pages per sheet", nup_row)
+        lines_row = QHBoxLayout()
+        for box in (self.lines_rows, self.lines_cols, self.lines_frame):
+            lines_row.addWidget(box)
+        lines_row.addStretch()
+        layout.addRow("Lines", lines_row)
         layout.addRow("Paper size", self.paper_edit)
         layout.addRow("Orientation", self.orientation_combo)
         layout.addRow("Page range", self.pages_edit)
@@ -125,13 +140,60 @@ class SettingsWidget(QWidget):
 
         self.load_settings(default_print_settings())
 
-    def _sync_grids(self, per_sheet: int) -> None:
+    def _lines(self) -> tuple[str, ...]:
+        return tuple(name for name, box in (("rows", self.lines_rows), ("columns", self.lines_cols), ("frame", self.lines_frame)) if box.isChecked())
+
+    def _sheet_icon(self, per_sheet: int, cols: int, rows: int) -> QIcon:
+        """A portrait sheet with its cells, numbered in reading order, and
+        the chosen lines."""
+        w, h = 34, 46
+        pix = QPixmap(w, h)
+        pix.fill(QColor("white"))
+        p = QPainter(pix)
+        p.setPen(QColor("#888"))
+        p.drawRect(0, 0, w - 1, h - 1)
+        cw, ch = (w - 4) / cols, (h - 4) / rows
+        font = QFont()
+        font.setPixelSize(max(6, int(min(cw, ch) * 0.55)))
+        p.setFont(font)
+        lines = self._lines()
+        for k in range(cols * rows):
+            c, r = k % cols, k // cols
+            x, y = 2 + c * cw, 2 + r * ch
+            if k < per_sheet:
+                p.fillRect(int(x + 1), int(y + 1), int(cw - 2), int(ch - 2), QColor("#dfe8f6"))
+                p.setPen(QColor("#335"))
+                p.drawText(int(x), int(y), int(cw), int(ch), Qt.AlignCenter, str(k + 1))
+            if "frame" in lines:
+                p.setPen(QColor("#444"))
+                p.drawRect(int(x + 1), int(y + 1), int(cw - 2), int(ch - 2))
+        p.setPen(QColor("#444"))
+        if "columns" in lines:
+            for c in range(1, cols):
+                p.drawLine(int(2 + c * cw), 2, int(2 + c * cw), h - 3)
+        if "rows" in lines:
+            for r in range(1, rows):
+                p.drawLine(2, int(2 + r * ch), w - 3, int(2 + r * ch))
+        p.end()
+        return QIcon(pix)
+
+    def _sync_grids(self, per_sheet: int, keep: bool = False) -> None:
         from ..core.pages import grids_for
 
+        chosen = self.grid_combo.currentData() if keep else None
+        self.grid_combo.blockSignals(True)
         self.grid_combo.clear()
         for cols, rows in grids_for(per_sheet):
-            self.grid_combo.addItem(f"{cols} \u00d7 {rows}", (cols, rows))
-        self.grid_combo.setEnabled(per_sheet > 1)
+            # The drawing says it all; the size stays as a tooltip.
+            self.grid_combo.addItem(self._sheet_icon(per_sheet, cols, rows), "", (cols, rows))
+            self.grid_combo.setItemData(self.grid_combo.count() - 1, f"{cols} columns \u00d7 {rows} rows", Qt.ToolTipRole)
+        if chosen is not None:
+            self.grid_combo.setCurrentIndex(max(0, self.grid_combo.findData(chosen)))
+        self.grid_combo.blockSignals(False)
+        many = per_sheet > 1
+        self.grid_combo.setEnabled(many)
+        for box in (self.lines_rows, self.lines_cols, self.lines_frame):
+            box.setEnabled(many)
 
     def _sync_collate(self, copies: int) -> None:
         many = copies > 1
@@ -169,6 +231,7 @@ class SettingsWidget(QWidget):
             mirror_tb=self.mirror_tb_check.isChecked(),
             pages_per_sheet=self.nup_spin.value(),
             pages_grid=self.grid_combo.currentData() if self.nup_spin.value() > 1 else None,
+            pages_lines=self._lines() if self.nup_spin.value() > 1 else (),
         )
 
     def load_settings(self, settings: PrintSettings) -> None:
@@ -188,5 +251,8 @@ class SettingsWidget(QWidget):
         self.mirror_lr_check.setChecked(settings.mirror_lr)
         self.mirror_tb_check.setChecked(settings.mirror_tb)
         self.nup_spin.setValue(settings.pages_per_sheet)
+        self.lines_rows.setChecked("rows" in settings.pages_lines)
+        self.lines_cols.setChecked("columns" in settings.pages_lines)
+        self.lines_frame.setChecked("frame" in settings.pages_lines)
         if settings.pages_grid:
-            self.grid_combo.setCurrentIndex(max(0, self.grid_combo.findData(settings.pages_grid)))
+            self.grid_combo.setCurrentIndex(max(0, self.grid_combo.findData(tuple(settings.pages_grid))))
