@@ -6,12 +6,12 @@ Prints PDFs straight to paper, one file or a whole batch, without opening a view
 
 ## Features
 
-- One set of settings (printer, copies, duplex, paper size, page range, fit to page) applies to a whole batch; any queued file can override it.
-- Files, folders and zips (nested zips included) can be added by button or by drag and drop; zip members are extracted only when printed.
+- One set of settings (printer, copy count, sides, pages per sheet, paper size, page range, fit to page) applies to a whole batch; any queued file can override it. Both sides (long edge) is the default.
+- Files, folders and zips (nested zips included) can be included by button or by drag and drop; zip members are extracted only when printed.
 - A folder or zip row has its own checkbox; light blue marks a group printed only in part, or a file with a page range.
-- A progress bar under the queue shows the file printing now and its pages.
+- "Print this" and "Print all" sit under the queue, with a progress bar showing the file printing now and its pages.
 - A queue can be paused, reordered, retried, or handed to the OS scheduler to print later.
-- A network printer can be added by IP address.
+- A network printer can be included by IP address.
 
 ## Mechanism
 
@@ -38,12 +38,9 @@ printtool list-printers
 printtool-gui
 ```
 
-## Development
+## Acknowledgement
 
-```bash
-pip install -e ".[dev]"
-pytest
-```
+The printer icon is "mono printer" from openclipart.org (CC0). SumatraPDF (GPLv3) prints on Windows; it is downloaded separately and not part of this repository.
 
 ---
 

@@ -55,6 +55,11 @@ from .resources import asset_path
 from .widgets import SettingsWidget
 
 _ICON_PROVIDER = QFileIconProvider()
+
+
+def _n(count, word: str) -> str:
+    """Singular for 0 and 1, plural from 2 on."""
+    return word if (count or 0) <= 1 else word + "s"
 _INDENT = "  "
 GROUP_HEADER_ROLE = Qt.UserRole + 10
 
@@ -112,8 +117,12 @@ class PrintWorker(QThread):
             if self._auto_preview:
                 preview.open_in_default_viewer(job.path)
             print_path = job.path
+            if job.settings.pages_per_sheet > 1:
+                laid_out = pages.nup_pdf(print_path, job.settings.pages_per_sheet)
+                if laid_out is not None:
+                    print_path = laid_out
             if self._stamp_timestamp:
-                stamped = pages.stamp_pdf(job.path)
+                stamped = pages.stamp_pdf(print_path)
                 if stamped is not None:
                     print_path = stamped
             result = backend.print_file(print_path, job.settings)
@@ -144,11 +153,11 @@ class FileSettingsDialog(QDialog):
 class AddNetworkPrinterDialog(QDialog):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("Add network printer by IP")
+        self.setWindowTitle("Include network printer by IP")
 
         self.name_edit = QLineEdit()
         self.ip_edit = QLineEdit()
-        self.ip_edit.setPlaceholderText("e.g. 192.168.1.50")
+        self.ip_edit.setPlaceholderText("e.g., 192.168.1.50")
         self.protocol_combo = QComboBox()
         self.protocol_combo.addItems(["ipp", "socket"])
         self.port_spin = QSpinBox()
@@ -228,9 +237,9 @@ class MainWindow(QMainWindow):
         self.remove_zone = RemoveDropZone()
         self.remove_zone.remove_requested.connect(self._remove_selected)
 
-        add_files_btn = QPushButton("Add files...")
+        add_files_btn = QPushButton("Include files...")
         add_files_btn.clicked.connect(self._add_files)
-        add_folder_btn = QPushButton("Add folder...")
+        add_folder_btn = QPushButton("Include folder...")
         add_folder_btn.clicked.connect(self._add_folder)
         remove_btn = QPushButton("Remove selected")
         remove_btn.clicked.connect(self._remove_selected)
@@ -243,6 +252,13 @@ class MainWindow(QMainWindow):
         for b in (add_files_btn, add_folder_btn, remove_btn, clear_btn, preview_btn):
             file_buttons.addWidget(b)
 
+        self.print_now_btn = QPushButton("Print this")
+        self.print_now_btn.setEnabled(False)
+        self.print_now_btn.clicked.connect(self._print_selected_now)
+        self.print_all_btn = QPushButton("Print all")
+        self.print_all_btn.setEnabled(False)
+        self.print_all_btn.clicked.connect(self._print_all)
+
         self.queue_stats_label = QLabel()
         self.queue_stats_label.setStyleSheet("color: gray;")
         self.advanced_stats_label = QLabel()
@@ -253,27 +269,26 @@ class MainWindow(QMainWindow):
         stats_row.addWidget(self.queue_stats_label)
         stats_row.addStretch()
         stats_row.addWidget(self.advanced_stats_label)
+        for b in (self.print_now_btn, self.print_all_btn):
+            b.setObjectName("primaryPrint")
+            b.setMinimumWidth(96)
+            stats_row.addWidget(b)
 
         self.sort_combo = QComboBox()
-        self.sort_combo.addItem("Chronological", None)
+        self.sort_combo.addItem("Time included", None)
+        self.sort_combo.addItem("Time included (reversed)", "included_reversed")
         self.sort_combo.addItem("Name", "name")
         self.sort_combo.addItem("Size", "size")
         self.sort_combo.addItem("Pages", "pages")
         self.sort_combo.addItem("Last modified", "modified")
         self.sort_combo.currentIndexChanged.connect(lambda _: self._sort_queue())
-
-        self.print_now_btn = QPushButton("Print now")
-        self.print_now_btn.setEnabled(False)
-        self.print_now_btn.clicked.connect(self._print_selected_now)
-        self.print_all_btn = QPushButton("Print all")
-        self.print_all_btn.setEnabled(False)
-        self.print_all_btn.clicked.connect(self._print_all)
+        # Wide enough for the longest choice, so the combo never changes size.
+        self.sort_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
+        self.sort_combo.setFixedWidth(self.sort_combo.sizeHint().width())
 
         queue_header = QHBoxLayout()
         queue_header.addWidget(QLabel("Queue"))
         queue_header.addStretch()
-        queue_header.addWidget(self.print_now_btn)
-        queue_header.addWidget(self.print_all_btn)
         formats_btn = QPushButton("Printable formats...")
         formats_btn.clicked.connect(self._edit_file_types)
         queue_header.addWidget(formats_btn)
@@ -295,20 +310,19 @@ class MainWindow(QMainWindow):
         self.settings_widget = SettingsWidget(printers, self)
         refresh_btn = QPushButton("Refresh printers")
         refresh_btn.clicked.connect(self._refresh_printers)
-        add_network_printer_btn = QPushButton("Add network printer by IP...")
+        add_network_printer_btn = QPushButton("Include network printer by IP...")
         add_network_printer_btn.clicked.connect(self._add_network_printer)
         apply_all_btn = QPushButton("Apply these settings to all queued files")
         apply_all_btn.clicked.connect(self._apply_global_to_all)
 
-        settings_box = QGroupBox("Settings applied to newly added files")
+        settings_box = QGroupBox("Settings for files included next")
         settings_layout = QVBoxLayout(settings_box)
         settings_layout.addWidget(self.settings_widget)
         settings_layout.addWidget(refresh_btn)
         settings_layout.addWidget(add_network_printer_btn)
         settings_layout.addWidget(apply_all_btn)
 
-        self.print_btn = QPushButton("Print all queued files")
-        self.print_btn.clicked.connect(self._print_all)
+        self.print_btn = self.print_all_btn
         self.pause_btn = QPushButton("Pause")
         self.pause_btn.clicked.connect(self._toggle_pause)
         self.pause_btn.setEnabled(False)
@@ -319,7 +333,7 @@ class MainWindow(QMainWindow):
         self.schedule_btn.clicked.connect(self._schedule_queue)
 
         queue_controls = QHBoxLayout()
-        for b in (self.print_btn, self.pause_btn, self.cancel_btn):
+        for b in (self.pause_btn, self.cancel_btn):
             queue_controls.addWidget(b)
 
         self.log = QPlainTextEdit()
@@ -384,8 +398,8 @@ class MainWindow(QMainWindow):
         menu_bar = self.menuBar()
 
         file_menu = menu_bar.addMenu("&File")
-        file_menu.addAction("Add files...", self._add_files)
-        file_menu.addAction("Add folder...", self._add_folder)
+        file_menu.addAction("Include files...", self._add_files)
+        file_menu.addAction("Include folder...", self._add_folder)
         file_menu.addAction("Scan current folder...", self._scan_cwd)
         file_menu.addSeparator()
         file_menu.addAction("Exit", self.close)
@@ -401,7 +415,7 @@ class MainWindow(QMainWindow):
 
         view_menu = menu_bar.addMenu("&View")
         view_menu.addAction("Refresh printers", self._refresh_printers)
-        view_menu.addAction("Add network printer by IP...", self._add_network_printer)
+        view_menu.addAction("Include network printer by IP...", self._add_network_printer)
         view_menu.addSeparator()
         self.auto_preview_action = view_menu.addAction("Auto-preview before printing")
         self.auto_preview_action.setCheckable(True)
@@ -417,7 +431,7 @@ class MainWindow(QMainWindow):
         self.advanced_formats_action = scanning_menu.addAction("Show advanced file formats when scanning")
         self.advanced_formats_action.setCheckable(True)
         self.advanced_formats_action.setToolTip(
-            "Also offer settings.yaml's advanced_extensions (e.g. txt, log, html) when scanning a folder or zip."
+            "Also offer settings.yaml's advanced_extensions (e.g., txt, log, html) when scanning a folder or zip."
         )
         self.advanced_stats_action = scanning_menu.addAction("Show advanced print statistics")
         self.advanced_stats_action.setCheckable(True)
@@ -486,8 +500,8 @@ class MainWindow(QMainWindow):
         toolbar.setMovable(False)
         self.addToolBar(toolbar)
 
-        toolbar.addAction(style.standardIcon(QStyle.SP_FileDialogNewFolder), "Add files...", self._add_files)
-        toolbar.addAction(style.standardIcon(QStyle.SP_DirOpenIcon), "Add folder...", self._add_folder)
+        toolbar.addAction(style.standardIcon(QStyle.SP_FileDialogNewFolder), "Include files...", self._add_files)
+        toolbar.addAction(style.standardIcon(QStyle.SP_DirOpenIcon), "Include folder...", self._add_folder)
         toolbar.addSeparator()
         self.preview_action = toolbar.addAction(
             style.standardIcon(QStyle.SP_FileIcon), "Open in default viewer", self._preview_selected
@@ -531,8 +545,8 @@ class MainWindow(QMainWindow):
         QMessageBox.information(
             self,
             "Keyboard shortcuts",
-            "Ctrl+O\tAdd files\n"
-            "Ctrl+Shift+O\tAdd folder\n"
+            "Ctrl+O\tInclude files\n"
+            "Ctrl+Shift+O\tInclude folder\n"
             "Ctrl+Shift+C\tScan current folder\n"
             "Delete\tRemove selected\n"
             "Ctrl+D\tDuplicate selected\n"
@@ -562,7 +576,7 @@ class MainWindow(QMainWindow):
         item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
         item.setCheckState(Qt.Checked)
         pages_count = self._job_pages(job)
-        item.setToolTip(f"{pages_count} page(s)" if pages_count is not None else "Page count unknown")
+        item.setToolTip(f"{pages_count} {_n(pages_count, 'page')}" if pages_count is not None else "Page count unknown")
         return item
 
     def _refresh_item_text(self, job_id: str) -> None:
@@ -606,7 +620,7 @@ class MainWindow(QMainWindow):
             return
 
         total_pages = sum(p for p in (self._job_pages(j) for j in jobs) if p is not None)
-        text = f"{len(jobs)} file(s), {total_pages} page(s)"
+        text = f"{len(jobs)} {_n(len(jobs), 'file')}, {total_pages} {_n(total_pages, 'page')}"
 
         if self._print_run_started is not None:
             done = [j for j in jobs if j.status in (JobStatus.DONE, JobStatus.FAILED, JobStatus.CANCELLED)]
@@ -699,7 +713,7 @@ class MainWindow(QMainWindow):
         for item in group_rows:
             item.setData(ZIP_GROUP_HEADER_ROLE, zip_header)
 
-        self._log_timestamped(label, f"{zip_path} (zip, {leaf_count} file(s) tracked)")
+        self._log_timestamped(label, f"{zip_path} (zip, {leaf_count} {_n(leaf_count, 'file')})")
         self._update_queue_stats()
 
     @staticmethod
@@ -727,11 +741,11 @@ class MainWindow(QMainWindow):
         self._add_paths(paths, label="File dragged")
 
     def _add_files(self) -> None:
-        files, _ = QFileDialog.getOpenFileNames(self, "Add PDF files", "", "PDF files (*.pdf)")
+        files, _ = QFileDialog.getOpenFileNames(self, "Include files", "", "PDF files (*.pdf)")
         self._add_paths([Path(f) for f in files])
 
     def _add_folder(self) -> None:
-        folder = QFileDialog.getExistingDirectory(self, "Add folder")
+        folder = QFileDialog.getExistingDirectory(self, "Include folder")
         if folder:
             self._scan_folder(Path(folder))
 
@@ -766,18 +780,21 @@ class MainWindow(QMainWindow):
             rows.append(item)
         for item in rows:
             item.setData(ZIP_GROUP_HEADER_ROLE, header)
-        self._log_timestamped(label, f"{folder} (folder, {len(files)} file(s))")
+        self._log_timestamped(label, f"{folder} (folder, {len(files)} {_n(len(files), 'file')})")
         self._update_queue_stats()
 
     def _sort_queue(self) -> None:
         key = self.sort_combo.currentData()
-        if key is None:
-            return
 
         def sort_key(block: list[QListWidgetItem]):
-            job = self.jobs.get(block[0].data(JOB_ID_ROLE))
+            leaves = [self.jobs[i.data(JOB_ID_ROLE)] for i in block if i.data(JOB_ID_ROLE) in self.jobs]
+            job = leaves[0] if leaves else None
             if job is None:
                 return (1, "")
+            if key is None:
+                return (0, job.seq)
+            if key == "included_reversed":
+                return (0, -job.seq)
             if key == "name":
                 return (0, job.path.name.lower())
             if key == "size":
@@ -935,14 +952,14 @@ class MainWindow(QMainWindow):
                 job = self.jobs.get(item.data(JOB_ID_ROLE))
                 if job is not None:
                     job.settings = new_settings.clone()
-            self.log.appendPlainText(f"Updated settings for {len(items)} file(s).")
+            self.log.appendPlainText(f"Updated settings for {len(items)} {_n(len(items), 'file')}.")
             self._refresh_check_marks()
 
     def _apply_global_to_all(self) -> None:
         settings = self.settings_widget.to_settings()
         for job in self.jobs.values():
             job.settings = settings.clone()
-        self.log.appendPlainText(f"Applied current settings to all {len(self.jobs)} queued file(s).")
+        self.log.appendPlainText(f"Applied current settings to {len(self.jobs)} queued {_n(len(self.jobs), 'file')}.")
         self._refresh_check_marks()
 
     def _refresh_printers(self) -> None:
@@ -1152,7 +1169,7 @@ class MainWindow(QMainWindow):
 
     def _print_all(self) -> None:
         if not self.jobs:
-            QMessageBox.information(self, "Nothing to print", "Add some files first.")
+            QMessageBox.information(self, "Nothing to print", "The queue is empty.")
             return
 
         ordered_jobs = []
@@ -1195,7 +1212,7 @@ class MainWindow(QMainWindow):
         self.pause_btn.setEnabled(True)
         self.pause_btn.setText("Pause")
         self.cancel_btn.setEnabled(True)
-        self.log.appendPlainText(f"Printing {len(jobs)} file(s)...")
+        self.log.appendPlainText(f"Printing {len(jobs)} {_n(len(jobs), 'file')}...")
         self._print_run_started = datetime.now()
         self._update_queue_stats()
 
@@ -1256,7 +1273,7 @@ class MainWindow(QMainWindow):
 
     def _schedule_queue(self) -> None:
         if not self.jobs:
-            QMessageBox.information(self, "Nothing to schedule", "Add some files first.")
+            QMessageBox.information(self, "Nothing to schedule", "The queue is empty.")
             return
         dialog = ScheduleDialog(self)
         if dialog.exec() != QDialog.Accepted:
@@ -1281,7 +1298,7 @@ class MainWindow(QMainWindow):
             self.log.appendPlainText(message)
             if success:
                 succeeded += 1
-        self.log.appendPlainText(f"Scheduled {succeeded}/{len(self.jobs)} file(s) for {at}.")
+        self.log.appendPlainText(f"Scheduled {succeeded} of {len(self.jobs)} {_n(len(self.jobs), 'file')} for {at}.")
 
 
 def main() -> None:
@@ -1299,6 +1316,12 @@ def main() -> None:
     ensure_settings_file()
     app = QApplication(sys.argv)
     app.setWindowIcon(QIcon(asset_path("printer-icon.png")))
+    app.setStyleSheet(
+        "QPushButton#primaryPrint { background: #2f6fd6; color: white; border: none; border-radius: 6px; padding: 6px 14px; font-weight: 600; }"
+        "QPushButton#primaryPrint:hover { background: #3b82f0; }"
+        "QPushButton#primaryPrint:pressed { background: #2459ad; }"
+        "QPushButton#primaryPrint:disabled { background: #b9c7de; color: #f4f6fa; }"
+    )
     window = MainWindow()
     window.show()
     sys.exit(app.exec())

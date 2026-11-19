@@ -6,7 +6,7 @@ from printtool.core.models import Duplex, Orientation, PrintSettings
 
 def test_default_command():
     cmd = build_command(Path("doc.pdf"), PrintSettings())
-    assert cmd == ["lp", "-o", "sides=one-sided", "-o", "fit-to-page", "-o", "Collate=True", "doc.pdf"]
+    assert cmd == ["lp", "-o", "sides=two-sided-long-edge", "-o", "fit-to-page", "-o", "Collate=True", "doc.pdf"]
 
 
 def test_full_settings_command():

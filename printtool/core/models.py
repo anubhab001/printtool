@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
@@ -27,7 +28,7 @@ class PrintSettings:
 
     printer: str | None = None  # None = system default printer
     copies: int = 1
-    duplex: Duplex = Duplex.NONE
+    duplex: Duplex = Duplex.LONG_EDGE
     paper_size: str | None = None  # e.g. "A4", "Letter"
     orientation: Orientation = Orientation.AUTO
     page_range: str | None = None  # e.g. "1-3,5"
@@ -37,6 +38,7 @@ class PrintSettings:
     delete_after_print: bool = False  # delete the original file once printing succeeds
     mirror_lr: bool = False  # mirror left-right before printing (PDF only)
     mirror_tb: bool = False  # mirror top-bottom before printing (PDF only)
+    pages_per_sheet: int = 1  # PDF pages laid out on one side of a sheet
 
     def clone(self, **overrides) -> "PrintSettings":
         data = {
@@ -52,6 +54,7 @@ class PrintSettings:
             "delete_after_print": self.delete_after_print,
             "mirror_lr": self.mirror_lr,
             "mirror_tb": self.mirror_tb,
+            "pages_per_sheet": self.pages_per_sheet,
         }
         data.update(overrides)
         return PrintSettings(**data)
@@ -65,6 +68,9 @@ class JobStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+_SEQ = itertools.count()
+
+
 @dataclass
 class PrintJob:
     """A single file to print with its own settings. Two queued jobs can
@@ -76,6 +82,8 @@ class PrintJob:
     status: JobStatus = JobStatus.PENDING
     message: str = ""
     job_id: str = field(default_factory=lambda: uuid.uuid4().hex)
+    # Order of inclusion into the queue, for the "Time included" sort.
+    seq: int = field(default_factory=lambda: next(_SEQ))
     # Set when this job is a zip member not yet extracted: (zip_path, chain).
     # `path` is a display-only stand-in until extraction actually happens,
     # right before this job is printed.

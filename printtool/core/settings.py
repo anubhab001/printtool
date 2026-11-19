@@ -18,7 +18,7 @@ DEFAULTS: dict = {
     "delete_after_print": False,
     "fit_to_page": True,
     "collate": True,
-    "duplex": Duplex.NONE.value,
+    "duplex": Duplex.LONG_EDGE.value,
     "orientation": Orientation.AUTO.value,
     "auto_preview_before_print": False,
     "printable_extensions": ["pdf"],

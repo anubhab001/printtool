@@ -6,7 +6,7 @@ from printtool.core.sumatra import build_command, build_print_settings_tokens
 
 def test_tokens_default_settings():
     tokens = build_print_settings_tokens(PrintSettings())
-    assert tokens == ["simplex", "fit"]
+    assert tokens == ["duplexlong", "fit"]
 
 
 def test_tokens_full_settings():
@@ -40,7 +40,7 @@ def test_build_command_named_printer():
         "-print-to",
         "Office Printer",
         "-print-settings",
-        "simplex,fit",
+        "duplexlong,fit",
         "doc.pdf",
     ]
 

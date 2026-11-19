@@ -8,7 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import QMimeData, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QCursor, QDrag, QFont, QPainter, QPen
+from PySide6.QtGui import QColor, QCursor, QDrag, QFont, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -50,8 +50,61 @@ class StatusGlyphDelegate(QStyledItemDelegate):
     its print status read as two separate things rather than one icon
     standing in for both."""
 
+    INDENT = "\u2003\u2003"
+    STEP = 22  # pixels per nesting level
+
+    @classmethod
+    def _depth(cls, text: str) -> int:
+        return (len(text) - len(text.lstrip(cls.INDENT[0]))) // len(cls.INDENT)
+
+    def _tree_lines(self, painter, option, index, depth: int) -> None:
+        """Grey connector lines with a rounded elbow, drawn in the gutter the
+        row was shifted by, like a file tree."""
+        model = index.model()
+        texts = [model.index(r, 0).data() or "" for r in range(index.row() + 1, model.rowCount())]
+        later = [self._depth(t) for t in texts]
+        rect = option.rect
+        mid = rect.center().y()
+        x0 = rect.left() + 10
+        painter.save()
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setPen(QPen(QColor("#a8adb5"), 1.4))
+        for level in range(1, depth + 1):
+            x = x0 + (level - 1) * self.STEP
+            # Does another row at this level follow before the branch closes?
+            continues = False
+            for d in later:
+                if d < level:
+                    break
+                if d == level:
+                    continues = True
+                    break
+            if level == depth:
+                path = QPainterPath()
+                path.moveTo(x, rect.top())
+                path.lineTo(x, mid - 5)
+                path.quadTo(x, mid, x + 5, mid)
+                path.lineTo(x + self.STEP - 6, mid)
+                painter.drawPath(path)
+                if continues:
+                    painter.drawLine(int(x), int(mid), int(x), rect.bottom())
+            elif continues:
+                painter.drawLine(int(x), rect.top(), int(x), rect.bottom())
+        painter.restore()
+
     def paint(self, painter, option, index) -> None:
-        super().paint(painter, option, index)
+        depth = self._depth(index.data() or "")
+        if depth:
+            opt = QStyleOptionViewItem(option)
+            self.initStyleOption(opt, index)
+            opt.text = opt.text.lstrip(self.INDENT[0])
+            opt.rect = option.rect.adjusted(depth * self.STEP, 0, 0, 0)
+            style = opt.widget.style() if opt.widget else QApplication.style()
+            style.drawControl(QStyle.CE_ItemViewItem, opt, painter, opt.widget)
+            self._tree_lines(painter, option, index, depth)
+            option = opt
+        else:
+            super().paint(painter, option, index)
         if index.data(Qt.CheckStateRole) in (Qt.PartiallyChecked, Qt.PartiallyChecked.value):
             # Light blue box: only some pages, or only some files of a group.
             opt = QStyleOptionViewItem(option)

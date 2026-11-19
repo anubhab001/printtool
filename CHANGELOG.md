@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## Version 6
+- "Print this" and "Print all" under the queue, beside the counts; one "Print all".
+- "Include" instead of "Add"; "Copy", "Sides" (default both sides, long edge), pages per sheet (1 -- 16).
+- "Time included" sort and its reverse; singular "file"/"page" for 0 and 1; "e.g.,".
+- Grey tree lines with rounded corners for folders and zips.
+
+## Version 5
 - Queue: Zip icon for zips, folder rows for scanned folders, plain indentation instead of tree lines.
 - Group checkboxes follow their files; light blue for partly printed groups or files with a page range.
 - "Chronological" replaces "(Unsorted)"; "Printable formats..." button above the queue.

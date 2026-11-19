@@ -118,6 +118,42 @@ def mirror_pdf(path: Path, horizontal: bool, vertical: bool) -> Path | None:
         return None
 
 
+# pages per sheet -> (columns, rows) on a portrait sheet
+NUP_GRIDS = {1: (1, 1), 2: (1, 2), 4: (2, 2), 6: (2, 3), 9: (3, 3), 16: (4, 4)}
+
+
+def nup_pdf(path: Path, per_sheet: int) -> Path | None:
+    """A copy of `path` with `per_sheet` pages scaled into a grid on each
+    sheet, reading left to right, top to bottom. None when there is
+    nothing to do (one per sheet, pypdf missing, or not a PDF)."""
+    if PdfReader is None or per_sheet <= 1 or per_sheet not in NUP_GRIDS or path.suffix.lower() != ".pdf":
+        return None
+    try:
+        from pypdf import PageObject
+
+        reader = PdfReader(str(path))
+        sheet_w, sheet_h = float(reader.pages[0].mediabox.width), float(reader.pages[0].mediabox.height)
+        cols, rows = NUP_GRIDS[per_sheet]
+        cell_w, cell_h = sheet_w / cols, sheet_h / rows
+        writer = PdfWriter()
+        for start in range(0, len(reader.pages), per_sheet):
+            sheet = PageObject.create_blank_page(width=sheet_w, height=sheet_h)
+            for k, page in enumerate(reader.pages[start:start + per_sheet]):
+                w, h = float(page.mediabox.width), float(page.mediabox.height)
+                scale = min(cell_w / w, cell_h / h)
+                col, row = k % cols, k // cols
+                tx = col * cell_w + (cell_w - w * scale) / 2
+                ty = sheet_h - (row + 1) * cell_h + (cell_h - h * scale) / 2
+                sheet.merge_transformed_page(page, Transformation().scale(scale).translate(tx, ty))
+            writer.add_page(sheet)
+        dest = Path(tempfile.mkdtemp(prefix="printtool-nup-")) / path.name
+        with open(dest, "wb") as f:
+            writer.write(f)
+        return dest
+    except Exception:
+        return None
+
+
 def stamp_pdf(path: Path) -> Path | None:
     """A copy of `path` with the current date/time stamped in the
     bottom-right corner of every page, drawn via a reportlab overlay

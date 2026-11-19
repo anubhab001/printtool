@@ -33,11 +33,16 @@ class SettingsWidget(QWidget):
         self.copies_spin.setValue(1)
 
         self.duplex_combo = QComboBox()
+        duplex_labels = {Duplex.NONE: "One side", Duplex.LONG_EDGE: "Both sides (long edge)", Duplex.SHORT_EDGE: "Both sides (short edge)"}
         for d in Duplex:
-            self.duplex_combo.addItem(d.value.replace("_", " ").title(), d)
+            self.duplex_combo.addItem(duplex_labels[d], d)
+
+        self.nup_combo = QComboBox()
+        for n in (1, 2, 4, 6, 9, 16):
+            self.nup_combo.addItem(str(n), n)
 
         self.paper_edit = QLineEdit()
-        self.paper_edit.setPlaceholderText("e.g. A4, Letter (blank = printer default)")
+        self.paper_edit.setPlaceholderText("e.g., A4, Letter (blank = printer default)")
 
         self.orientation_combo = QComboBox()
         orientation_labels = {Orientation.AUTO: "Automatic"}
@@ -45,7 +50,7 @@ class SettingsWidget(QWidget):
             self.orientation_combo.addItem(orientation_labels.get(o, o.value.title()), o)
 
         self.pages_edit = QLineEdit()
-        self.pages_edit.setPlaceholderText('e.g. 1-3,5 (blank = all pages)')
+        self.pages_edit.setPlaceholderText('e.g., 1-3,5 (blank = all pages)')
 
         self.fit_check = QCheckBox("Fit to page")
         self.fit_check.setChecked(True)
@@ -55,7 +60,7 @@ class SettingsWidget(QWidget):
 
         self.buffer_copy_check = QCheckBox("Copy to a temporary file before printing")
         self.buffer_copy_check.setToolTip(
-            "Protects against removable media (e.g. a USB drive) being pulled mid-job."
+            "Protects against removable media (e.g., a USB drive) being pulled mid-job."
         )
 
         self.delete_after_print_check = QCheckBox("Delete original file after printing")
@@ -90,8 +95,9 @@ class SettingsWidget(QWidget):
 
         layout = QFormLayout(self)
         layout.addRow("Printer", self.printer_combo)
-        layout.addRow("Copies", self.copies_spin)
-        layout.addRow("Duplex", self.duplex_combo)
+        layout.addRow("Copy", self.copies_spin)
+        layout.addRow("Sides", self.duplex_combo)
+        layout.addRow("Pages per sheet", self.nup_combo)
         layout.addRow("Paper size", self.paper_edit)
         layout.addRow("Orientation", self.orientation_combo)
         layout.addRow("Page range", self.pages_edit)
@@ -128,6 +134,7 @@ class SettingsWidget(QWidget):
             delete_after_print=self.delete_after_print_check.isChecked(),
             mirror_lr=self.mirror_lr_check.isChecked(),
             mirror_tb=self.mirror_tb_check.isChecked(),
+            pages_per_sheet=self.nup_combo.currentData(),
         )
 
     def load_settings(self, settings: PrintSettings) -> None:
@@ -144,3 +151,4 @@ class SettingsWidget(QWidget):
         self.delete_after_print_check.setChecked(settings.delete_after_print)
         self.mirror_lr_check.setChecked(settings.mirror_lr)
         self.mirror_tb_check.setChecked(settings.mirror_tb)
+        self.nup_combo.setCurrentIndex(max(0, self.nup_combo.findData(settings.pages_per_sheet)))
