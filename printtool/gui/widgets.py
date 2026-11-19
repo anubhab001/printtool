@@ -101,6 +101,13 @@ class SettingsWidget(QWidget):
 
         self.mirror_lr_check = QCheckBox("Mirror left-right")
         self.mirror_tb_check = QCheckBox("Mirror top-bottom")
+        # Added to each page; on a sheet of several pages each shrinks with
+        # its page.
+        self.stamp_date_check = QCheckBox("Date and time")
+        self.page_numbers_check = QCheckBox("Page numbers")
+        self.signature_check = QCheckBox("Signature")
+        self.signature_path = ""
+        self.signature_check.toggled.connect(self._choose_signature)
 
         advanced_box = QWidget()
         advanced_layout = QFormLayout(advanced_box)
@@ -108,6 +115,12 @@ class SettingsWidget(QWidget):
         advanced_layout.addRow(self.delete_after_print_check)
         advanced_layout.addRow(self.mirror_lr_check)
         advanced_layout.addRow(self.mirror_tb_check)
+        marks = QHBoxLayout()
+        marks.addWidget(QLabel("On each page"))
+        for box in (self.stamp_date_check, self.page_numbers_check, self.signature_check):
+            marks.addWidget(box)
+        marks.addStretch()
+        advanced_layout.addRow(marks)
         # Only for several pages per sheet.
         self._grid_lines = QWidget()
         lines_row = QHBoxLayout(self._grid_lines)
@@ -150,6 +163,18 @@ class SettingsWidget(QWidget):
 
         self._sync_grids(self.nup_spin.value())
         self.load_settings(default_print_settings())
+
+    def _choose_signature(self, on: bool) -> None:
+        if not on:
+            return
+        from PySide6.QtWidgets import QFileDialog
+
+        path, _ = QFileDialog.getOpenFileName(self, "Signature", self.signature_path, "Images (*.png *.jpg *.jpeg)")
+        if path:
+            self.signature_path = path
+            self.signature_check.setToolTip(path)
+        elif not self.signature_path:
+            self.signature_check.setChecked(False)
 
     def _lines(self) -> tuple[str, ...]:
         return tuple(name for name, box in (("rows", self.lines_rows), ("columns", self.lines_cols), ("frame", self.lines_frame)) if box.isChecked())
@@ -245,6 +270,9 @@ class SettingsWidget(QWidget):
             delete_after_print=self.delete_after_print_check.isChecked(),
             mirror_lr=self.mirror_lr_check.isChecked(),
             mirror_tb=self.mirror_tb_check.isChecked(),
+            stamp_date=self.stamp_date_check.isChecked(),
+            page_numbers=self.page_numbers_check.isChecked(),
+            signature=self.signature_path if self.signature_check.isChecked() and self.signature_path else None,
             pages_per_sheet=self.nup_spin.value(),
             pages_grid=self.grid_combo.currentData() if self.nup_spin.value() > 1 else None,
             pages_lines=self._lines() if self.nup_spin.value() > 1 else (),
@@ -266,6 +294,12 @@ class SettingsWidget(QWidget):
         self.delete_after_print_check.setChecked(settings.delete_after_print)
         self.mirror_lr_check.setChecked(settings.mirror_lr)
         self.mirror_tb_check.setChecked(settings.mirror_tb)
+        self.stamp_date_check.setChecked(settings.stamp_date)
+        self.page_numbers_check.setChecked(settings.page_numbers)
+        self.signature_path = settings.signature or ""
+        self.signature_check.blockSignals(True)
+        self.signature_check.setChecked(bool(settings.signature))
+        self.signature_check.blockSignals(False)
         self.nup_spin.setValue(settings.pages_per_sheet)
         self.lines_rows.setChecked("rows" in settings.pages_lines)
         self.lines_cols.setChecked("columns" in settings.pages_lines)

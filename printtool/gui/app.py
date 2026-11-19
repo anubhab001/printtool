@@ -72,11 +72,10 @@ class PrintWorker(QThread):
     job_status = Signal(str, str, str)  # path, status value, message
     finished_all = Signal()
 
-    def __init__(self, jobs: list[PrintJob], auto_preview: bool = False, stamp_timestamp: bool = False) -> None:
+    def __init__(self, jobs: list[PrintJob], auto_preview: bool = False) -> None:
         super().__init__()
         self._jobs = jobs
         self._auto_preview = auto_preview
-        self._stamp_timestamp = stamp_timestamp
         self._cancel_requested = False
         self._paused = False
 
@@ -119,8 +118,9 @@ class PrintWorker(QThread):
             print_path = job.path
             # The stamp goes on each original page first, so on a sheet of
             # several pages it shrinks along with its page.
-            if self._stamp_timestamp:
-                stamped = pages.stamp_pdf(print_path)
+            st = job.settings
+            if st.stamp_date or st.page_numbers or st.signature:
+                stamped = pages.stamp_pdf(print_path, st.stamp_date, st.page_numbers, st.signature)
                 if stamped is not None:
                     print_path = stamped
             if job.settings.pages_per_sheet > 1:
@@ -482,14 +482,6 @@ class MainWindow(QMainWindow):
             self._blank_spacer_group.addAction(action)
             blank_spacer_menu.addAction(action)
 
-        self.stamp_timestamp_action = page_extras_menu.addAction("Stamp date & time on each printed page")
-        self.stamp_timestamp_action.setCheckable(True)
-        self.stamp_timestamp_action.setChecked(settings.load_stamp_timestamp())
-        self.stamp_timestamp_action.setToolTip(
-            "Bottom-right corner, PDF files only -- not present in the original file, added just "
-            "before this print."
-        )
-        self.stamp_timestamp_action.triggered.connect(settings.save_stamp_timestamp)
 
         help_menu = menu_bar.addMenu("&Help")
         help_menu.addAction("Tip...", self._show_tip)
@@ -1223,7 +1215,6 @@ class MainWindow(QMainWindow):
         self.worker = PrintWorker(
             jobs,
             auto_preview=self.auto_preview_action.isChecked(),
-            stamp_timestamp=self.stamp_timestamp_action.isChecked(),
         )
         self.worker.job_status.connect(self._on_job_status)
         self.worker.finished_all.connect(self._on_all_done)

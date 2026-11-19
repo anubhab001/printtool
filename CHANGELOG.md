@@ -4,6 +4,7 @@
 - "Print this" and "Print all" under the queue, beside the counts; one "Print all".
 - "Include" instead of "Add"; "Copy" with Collate beside it (active above one copy); "Sides" One, Both (long edge, the default) or Both (short edge).
 - Pages per sheet (1 -- 10), each layout drawn; grid lines and page frames under Advanced options.
+- Advanced options: Date and time, page numbers or a signature on each page.
 - "Time included" sort and its reverse; singular "file"/"page" for 0 and 1; "e.g.,".
 - Grey tree lines with rounded corners for folders and zips.
 

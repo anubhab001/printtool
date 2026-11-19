@@ -194,38 +194,45 @@ def _grid_lines(width: float, height: float, cols: int, rows: int, lines) -> "Pa
     return PdfReader(buf).pages[0]
 
 
-def stamp_pdf(path: Path) -> Path | None:
-    """A copy of `path` with the current date/time stamped in the
-    bottom-right corner of every page, drawn via a reportlab overlay
-    page merged onto each real page with pypdf (pypdf alone has no way
-    to draw text, only to merge/transform existing pages). None when
-    there is nothing to do (pypdf/reportlab missing, or not a PDF)."""
-    if PdfReader is None or path.suffix.lower() != ".pdf":
+def stamp_pdf(path: Path, date: bool = True, numbers: bool = False, signature: str | None = None) -> Path | None:
+    """A copy of `path` with, on every page, any of: the date and time
+    (bottom right), the page number (bottom centre) and a signature image
+    (bottom left). Drawn with a reportlab overlay merged by pypdf. None
+    when there is nothing to do or it cannot be done (not a PDF)."""
+    if PdfReader is None or path.suffix.lower() != ".pdf" or not (date or numbers or signature):
         return None
     try:
         from datetime import datetime
 
+        from reportlab.lib.utils import ImageReader
         from reportlab.pdfgen import canvas
 
         writer = PdfWriter(clone_from=str(path))
         stamp_text = datetime.now().strftime("%Y-%m-%d %H:%M")
-        for page in writer.pages:
+        image = ImageReader(signature) if signature and Path(signature).exists() else None
+        total = len(writer.pages)
+        for n, page in enumerate(writer.pages, start=1):
             width, height = float(page.mediabox.width), float(page.mediabox.height)
             buf = io.BytesIO()
-            overlay_canvas = canvas.Canvas(buf, pagesize=(width, height))
-            overlay_canvas.setFont("Helvetica", 8)
-            overlay_canvas.drawRightString(width - 18, 12, stamp_text)
-            overlay_canvas.save()
+            c = canvas.Canvas(buf, pagesize=(width, height))
+            c.setFont("Helvetica", 8)
+            if date:
+                c.drawRightString(width - 18, 12, stamp_text)
+            if numbers:
+                c.drawCentredString(width / 2, 12, f"{n} / {total}")
+            if image:
+                iw, ih = image.getSize()
+                h = 28
+                c.drawImage(image, 18, 10, width=h * iw / ih, height=h, mask="auto")
+            c.save()
             buf.seek(0)
-            overlay_page = PdfReader(buf).pages[0]
-            page.merge_page(overlay_page)
+            page.merge_page(PdfReader(buf).pages[0])
         dest = Path(tempfile.mkdtemp(prefix="printtool-stamp-")) / path.name
         with open(dest, "wb") as f:
             writer.write(f)
         return dest
     except Exception:
         return None
-
 
 def mostly_blank(path: Path, threshold_bytes: int = 200) -> bool | None:
     """A rough, content-stream-size heuristic for "this page has barely

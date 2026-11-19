@@ -40,3 +40,18 @@ def test_lines_are_drawn_on_the_sheet(tmp_path):
     plain_ops = PdfReader(str(plain)).pages[0].get_contents().get_data()
     lined_ops = PdfReader(str(lined)).pages[0].get_contents().get_data()
     assert len(lined_ops) > len(plain_ops)
+
+
+def test_page_numbers_and_date_are_stamped(tmp_path):
+    from printtool.core.pages import stamp_pdf
+
+    src = tmp_path / "doc.pdf"
+    w = PdfWriter()
+    for _ in range(2):
+        w.add_blank_page(width=595, height=842)
+    with src.open("wb") as fh:
+        w.write(fh)
+    out = stamp_pdf(src, date=True, numbers=True)
+    text = PdfReader(str(out)).pages[1].extract_text()
+    assert "2 / 2" in text
+    assert stamp_pdf(src, date=False) is None

@@ -38,6 +38,10 @@ class PrintSettings:
     delete_after_print: bool = False  # delete the original file once printing succeeds
     mirror_lr: bool = False  # mirror left-right before printing (PDF only)
     mirror_tb: bool = False  # mirror top-bottom before printing (PDF only)
+    # Added to each page before printing (PDF only).
+    stamp_date: bool = False
+    page_numbers: bool = False
+    signature: str | None = None  # path to a PNG or JPEG
     pages_per_sheet: int = 1  # PDF pages laid out on one side of a sheet
     pages_grid: tuple[int, int] | None = None  # (columns, rows); None picks the closest fit
     # Lines drawn on a sheet of several pages: any of "rows" (between rows),
@@ -58,6 +62,9 @@ class PrintSettings:
             "delete_after_print": self.delete_after_print,
             "mirror_lr": self.mirror_lr,
             "mirror_tb": self.mirror_tb,
+            "stamp_date": self.stamp_date,
+            "page_numbers": self.page_numbers,
+            "signature": self.signature,
             "pages_per_sheet": self.pages_per_sheet,
             "pages_grid": self.pages_grid,
             "pages_lines": list(self.pages_lines),
