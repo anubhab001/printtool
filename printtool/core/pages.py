@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import io
 import tempfile
+
+from . import scratch
 from pathlib import Path
 
 try:
@@ -71,7 +73,7 @@ def build_blank_pdf(paper_size: str | None) -> Path:
     width, height = _paper_points(paper_size)
     writer = PdfWriter()
     writer.add_blank_page(width=width, height=height)
-    dest = Path(tempfile.mkdtemp(prefix="printtool-blank-")) / "blank-page.pdf"
+    dest = scratch.folder("printtool-blank-") / "blank-page.pdf"
     with open(dest, "wb") as f:
         writer.write(f)
     return dest
@@ -91,7 +93,7 @@ def build_test_pdf(paper_size: str | None) -> Path:
         f"1 0 0 RG 2 w {margin} {margin} {width - 2 * margin} {height - 2 * margin} re S".encode()
     )
     page[NameObject("/Contents")] = writer._add_object(stream)
-    dest = Path(tempfile.mkdtemp(prefix="printtool-test-")) / "test-page.pdf"
+    dest = scratch.folder("printtool-test-") / "test-page.pdf"
     with open(dest, "wb") as f:
         writer.write(f)
     return dest
@@ -110,7 +112,7 @@ def mirror_pdf(path: Path, horizontal: bool, vertical: bool) -> Path | None:
             transform = Transformation().scale(-1 if horizontal else 1, -1 if vertical else 1)
             transform = transform.translate(width if horizontal else 0, height if vertical else 0)
             page.add_transformation(transform)
-        dest = Path(tempfile.mkdtemp(prefix="printtool-mirror-")) / path.name
+        dest = scratch.folder("printtool-mirror-") / path.name
         with open(dest, "wb") as f:
             writer.write(f)
         return dest
@@ -134,11 +136,33 @@ def grids_for(per_sheet: int) -> list[tuple[int, int]]:
     return sorted(out, key=lambda g: (abs(g[0] - g[1]), g[1] < g[0]))
 
 
-def nup_pdf(path: Path, per_sheet: int, grid: tuple[int, int] | None = None, lines: tuple[str, ...] = ()) -> Path | None:
-    """A copy of `path` with `per_sheet` pages scaled into a grid on each
-    sheet, reading left to right, top to bottom, with optional lines
-    between rows, between columns, or around each page. None when there is
-    nothing to do (one per sheet, pypdf missing, or not a PDF)."""
+def cells(sheet_w: float, sheet_h: float, per_sheet: int, grid: tuple[int, int] | None = None,
+          rows: tuple[int, ...] | None = None) -> list[list[tuple[float, float, float, float]]]:
+    """The cells of a sheet, row by row from the top, each (x, y, w, h) with
+    y measured from the bottom (as PDF does). A grid gives equal cells;
+    `rows` gives each row its own count (2, 1: two above, one wide below)."""
+    if rows:
+        counts = [max(1, int(n)) for n in rows]
+    else:
+        cols, nrows = grid if grid and grid[0] * grid[1] >= per_sheet else grids_for(per_sheet)[0]
+        counts = [cols] * nrows
+    h = sheet_h / len(counts)
+    out = []
+    for r, n in enumerate(counts):
+        w = sheet_w / n
+        out.append([(c * w, sheet_h - (r + 1) * h, w, h) for c in range(n)])
+    return out
+
+
+def nup_pdf(path: Path, per_sheet: int, grid: tuple[int, int] | None = None, lines: tuple[str, ...] = (),
+            rows: tuple[int, ...] | None = None) -> Path | None:
+    """A copy of `path` with several pages scaled into cells on each sheet,
+    reading left to right, top to bottom: `per_sheet` pages in a grid, or
+    rows of their own (`rows`); optional lines between rows, between columns,
+    or around each page. None when there is nothing to do (one per sheet,
+    pypdf missing, or not a PDF)."""
+    if rows:
+        per_sheet = sum(rows)
     if PdfReader is None or per_sheet <= 1 or path.suffix.lower() != ".pdf":
         return None
     try:
@@ -146,22 +170,21 @@ def nup_pdf(path: Path, per_sheet: int, grid: tuple[int, int] | None = None, lin
 
         reader = PdfReader(str(path))
         sheet_w, sheet_h = float(reader.pages[0].mediabox.width), float(reader.pages[0].mediabox.height)
-        cols, rows = grid if grid and grid[0] * grid[1] >= per_sheet else grids_for(per_sheet)[0]
-        cell_w, cell_h = sheet_w / cols, sheet_h / rows
+        layout = cells(sheet_w, sheet_h, per_sheet, grid, rows)
+        flat = [c for row in layout for c in row][:per_sheet]
         writer = PdfWriter()
         for start in range(0, len(reader.pages), per_sheet):
             sheet = PageObject.create_blank_page(width=sheet_w, height=sheet_h)
-            for k, page in enumerate(reader.pages[start:start + per_sheet]):
+            for (cx, cy, cw, ch), page in zip(flat, reader.pages[start:start + per_sheet]):
                 w, h = float(page.mediabox.width), float(page.mediabox.height)
-                scale = min(cell_w / w, cell_h / h)
-                col, row = k % cols, k // cols
-                tx = col * cell_w + (cell_w - w * scale) / 2
-                ty = sheet_h - (row + 1) * cell_h + (cell_h - h * scale) / 2
+                scale = min(cw / w, ch / h)
+                tx = cx + (cw - w * scale) / 2
+                ty = cy + (ch - h * scale) / 2
                 sheet.merge_transformed_page(page, Transformation().scale(scale).translate(tx, ty))
             if lines:
-                sheet.merge_page(_grid_lines(sheet_w, sheet_h, cols, rows, lines))
+                sheet.merge_page(_grid_lines(sheet_w, sheet_h, layout, lines))
             writer.add_page(sheet)
-        dest = Path(tempfile.mkdtemp(prefix="printtool-nup-")) / path.name
+        dest = scratch.folder("printtool-nup-") / path.name
         with open(dest, "wb") as f:
             writer.write(f)
         return dest
@@ -169,26 +192,25 @@ def nup_pdf(path: Path, per_sheet: int, grid: tuple[int, int] | None = None, lin
         return None
 
 
-def _grid_lines(width: float, height: float, cols: int, rows: int, lines) -> "PageObject":
-    """A transparent page with thin grey lines for a grid of cells."""
+def _grid_lines(width: float, height: float, layout, lines) -> "PageObject":
+    """A transparent page with thin grey lines for the cells of `layout`."""
     from reportlab.pdfgen import canvas
 
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=(width, height))
     c.setStrokeGray(0.45)
     c.setLineWidth(0.6)
-    cw, ch = width / cols, height / rows
-    if "columns" in lines:
-        for i in range(1, cols):
-            c.line(i * cw, 0, i * cw, height)
-    if "rows" in lines:
-        for j in range(1, rows):
-            c.line(0, j * ch, width, j * ch)
-    if "frame" in lines:
-        inset = 4
-        for i in range(cols):
-            for j in range(rows):
-                c.rect(i * cw + inset, j * ch + inset, cw - 2 * inset, ch - 2 * inset)
+    for r, row in enumerate(layout):
+        x0, y0, _w, h = row[0]
+        if "rows" in lines and r > 0:
+            c.line(0, y0 + h, width, y0 + h)
+        if "columns" in lines:
+            for (x, y, _cw, ch) in row[1:]:
+                c.line(x, y, x, y + ch)
+        if "frame" in lines:
+            inset = 4
+            for (x, y, cw, ch) in row:
+                c.rect(x + inset, y + inset, cw - 2 * inset, ch - 2 * inset)
     c.save()
     buf.seek(0)
     return PdfReader(buf).pages[0]
@@ -227,7 +249,7 @@ def stamp_pdf(path: Path, date: bool = True, numbers: bool = False, signature: s
             c.save()
             buf.seek(0)
             page.merge_page(PdfReader(buf).pages[0])
-        dest = Path(tempfile.mkdtemp(prefix="printtool-stamp-")) / path.name
+        dest = scratch.folder("printtool-stamp-") / path.name
         with open(dest, "wb") as f:
             writer.write(f)
         return dest
@@ -285,7 +307,7 @@ def concat_pdfs(paths: list[Path]) -> Path | None:
         for path in paths:
             for page in PdfReader(str(path)).pages:
                 writer.add_page(page)
-        dest = Path(tempfile.mkdtemp(prefix="printtool-join-")) / "joined.pdf"
+        dest = scratch.folder("printtool-join-") / "joined.pdf"
         with open(dest, "wb") as f:
             writer.write(f)
         return dest
@@ -305,7 +327,7 @@ def interleave_pdfs(paths: list[Path]) -> Path | None:
             for r in readers:
                 if i < len(r.pages):
                     writer.add_page(r.pages[i])
-        dest = Path(tempfile.mkdtemp(prefix="printtool-interleave-")) / "interleaved.pdf"
+        dest = scratch.folder("printtool-interleave-") / "interleaved.pdf"
         with open(dest, "wb") as f:
             writer.write(f)
         return dest

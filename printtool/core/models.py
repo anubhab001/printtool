@@ -44,6 +44,9 @@ class PrintSettings:
     signature: str | None = None  # path to a PNG or JPEG
     pages_per_sheet: int = 1  # PDF pages laid out on one side of a sheet
     pages_grid: tuple[int, int] | None = None  # (columns, rows); None picks the closest fit
+    # Rows of their own, top to bottom (2, 1: two pages above, one wide below);
+    # when set, it is the layout and pages_per_sheet is its total.
+    pages_rows: tuple[int, ...] | None = None
     # Lines drawn on a sheet of several pages: any of "rows" (between rows),
     # "columns" (between columns), "frame" (around each page).
     pages_lines: tuple[str, ...] = ()
@@ -67,6 +70,7 @@ class PrintSettings:
             "signature": self.signature,
             "pages_per_sheet": self.pages_per_sheet,
             "pages_grid": self.pages_grid,
+            "pages_rows": self.pages_rows,
             "pages_lines": list(self.pages_lines),
         }
         data.update(overrides)

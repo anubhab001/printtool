@@ -9,7 +9,10 @@ from pathlib import Path
 
 
 def asset_path(name: str) -> str:
-    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
-    if hasattr(sys, "_MEIPASS"):
-        return str(base / "printtool_gui_assets" / name)
-    return str(Path(__file__).resolve().parent / "assets" / name)
+    """The file beside this module (from source, and in a binary, which
+    unpacks printtool/gui/assets to the same place); the older binary
+    layout (printtool_gui_assets) if that is where it is."""
+    here = Path(__file__).resolve().parent / "assets" / name
+    if here.is_file() or not hasattr(sys, "_MEIPASS"):
+        return str(here)
+    return str(Path(sys._MEIPASS) / "printtool_gui_assets" / name)

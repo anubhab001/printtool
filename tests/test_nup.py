@@ -81,3 +81,19 @@ def test_pages_interleave(tmp_path):
         paths.append(p)
     widths = [float(pg.mediabox.width) for pg in PdfReader(str(interleave_pdfs(paths))).pages]
     assert widths == [100, 101, 100]
+
+
+def test_rows_of_their_own(tmp_path):
+    from printtool.core.pages import cells
+
+    src = tmp_path / "doc.pdf"
+    w = PdfWriter()
+    for _ in range(6):
+        w.add_blank_page(width=595, height=842)
+    with src.open("wb") as fh:
+        w.write(fh)
+    out = nup_pdf(src, 1, rows=(2, 1), lines=("rows", "columns", "frame"))
+    assert len(PdfReader(str(out)).pages) == 2  # three pages a sheet
+    layout = cells(600, 800, 3, rows=(2, 1))
+    assert [len(r) for r in layout] == [2, 1]
+    assert layout[1][0] == (0, 0, 600, 400)  # the lower row one wide cell

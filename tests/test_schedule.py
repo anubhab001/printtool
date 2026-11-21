@@ -3,13 +3,13 @@ from datetime import datetime
 from printtool.core import schedule
 
 
-def test_schedule_windows_builds_schtasks_command(monkeypatch):
+def test_schedule_windows_registers_task_with_iso_date(monkeypatch):
     monkeypatch.setattr(schedule.sys, "platform", "win32")
 
-    captured = {}
+    captured = []
 
-    def fake_run(cmd, capture_output, text):
-        captured["cmd"] = cmd
+    def fake_run(cmd, capture_output, text, env):
+        captured.append(env)
 
         class _Result:
             returncode = 0
@@ -21,13 +21,21 @@ def test_schedule_windows_builds_schtasks_command(monkeypatch):
     monkeypatch.setattr(schedule.subprocess, "run", fake_run)
 
     at = datetime(2026, 11, 6, 9, 0)
-    success, message = schedule.schedule_print(at, ["print", "doc.pdf"])
+    assert schedule.schedule_print(at, ["print", "doc.pdf"])[0]
+    assert schedule.schedule_print(at, ["print", "other.pdf"])[0]
+    # The date is ISO, whatever the system's date format.
+    assert captured[0]["PT_AT"] == "2026-11-06T09:00:00"
+    assert "doc.pdf" in captured[0]["PT_ARGS"]
+    # Two files at the same minute get two tasks.
+    assert captured[0]["PT_NAME"] != captured[1]["PT_NAME"]
 
-    assert success
-    assert "schtasks" in captured["cmd"]
-    assert "/create" in captured["cmd"]
-    assert "09:00" in captured["cmd"]
-    assert "11/06/2026" in captured["cmd"]
+
+def test_schedule_makes_existing_paths_absolute(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "report.pdf").write_text("x")
+    out = schedule.absolute_files(["print", "report.pdf", "--printer", "Office"])
+    assert out[1] == str(tmp_path / "report.pdf")
+    assert out[3] == "Office"
 
 
 def test_schedule_unix_builds_at_command(monkeypatch):

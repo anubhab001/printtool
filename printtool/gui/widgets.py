@@ -23,6 +23,46 @@ from ..core.models import Duplex, Orientation, PrintSettings
 from ..core.settings import default_print_settings
 
 
+def _rows_key(rows) -> str:
+    return "rows:" + ",".join(map(str, rows))
+
+
+class _PresetBox(QComboBox):
+    """A number chosen from a list (no typing), with QSpinBox's calls."""
+
+    from PySide6.QtCore import Signal as _Signal
+
+    valueChanged = _Signal(int)  # noqa: N815 - QSpinBox's name
+
+    def __init__(self, values) -> None:
+        super().__init__()
+        for v in values:
+            self.addItem(str(v), v)
+        self.currentIndexChanged.connect(lambda _i: self.valueChanged.emit(self.value()))
+
+    def value(self) -> int:
+        return int(self.currentData() or 1)
+
+    def setValue(self, v: int) -> None:  # noqa: N802 - QSpinBox's name
+        i = self.findData(int(v))
+        if i < 0:  # a count from elsewhere (rows of one's own): Listed too
+            self.addItem(str(v), int(v))
+            i = self.count() - 1
+        self.setCurrentIndex(i)
+
+
+class _FitPopupCombo(QComboBox):
+    """Its list as tall as its choices, no empty rows after the last."""
+
+    def showPopup(self) -> None:  # noqa: N802 - Qt override
+        super().showPopup()
+        view = self.view()
+        rows = sum(view.sizeHintForRow(i) for i in range(self.count()))
+        frame = view.parentWidget()
+        if frame is not None and rows > 0:
+            frame.setFixedHeight(min(rows + 2 * view.frameWidth() + 4, 620))
+
+
 class SettingsWidget(QWidget):
     def __init__(self, printers: list[str], parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -33,8 +73,9 @@ class SettingsWidget(QWidget):
             self.printer_combo.addItem(name, name)
 
         self.copies_spin = QSpinBox()
-        self.copies_spin.setRange(1, 999)
+        self.copies_spin.setRange(1, 100)
         self.copies_spin.setValue(1)
+        self.copies_spin.setFixedWidth(70)
 
         self.duplex_combo = QComboBox()
         duplex_labels = {Duplex.NONE: "One", Duplex.LONG_EDGE: "Both (long edge)", Duplex.SHORT_EDGE: "Both (short edge)"}
@@ -43,16 +84,16 @@ class SettingsWidget(QWidget):
 
         # Pages per sheet: A number (1 by default); above 1 the grid choice
         # opens with the layouts that fit that number.
-        self.nup_spin = QSpinBox()
-        self.nup_spin.setRange(1, 10)
-        self.nup_spin.setFixedWidth(84)
-        self.nup_spin.setValue(1)
+        self.nup_spin = _PresetBox((1, 2, 3, 4, 6, 8, 9, 10, 12, 16))
+        self.nup_spin.setFixedWidth(70)
         # Each layout is shown as a small drawing of the sheet, with its
         # pages numbered in reading order.
-        self.grid_combo = QComboBox()
+        self.grid_combo = _FitPopupCombo()
         self.grid_combo.setIconSize(QSize(18, 22))
         self.grid_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         self.grid_combo.setEnabled(False)
+        self._rows: tuple[int, ...] = ()
+        self.grid_combo.activated.connect(self._grid_chosen)
         self.lines_rows = QCheckBox("Between rows")
         self.lines_cols = QCheckBox("Between columns")
         self.lines_frame = QCheckBox("Frame each page")
@@ -82,7 +123,7 @@ class SettingsWidget(QWidget):
         self.collate_check.setToolTip("With several copies, print whole sets (1-2-3, 1-2-3) instead of 1-1, 2-2, 3-3.")
         self.copies_spin.valueChanged.connect(self._sync_collate)
 
-        self.buffer_copy_check = QCheckBox("Copy to a temporary file before printing")
+        self.buffer_copy_check = QCheckBox("Copy to temporary file before printing")
         self.buffer_copy_check.setToolTip(
             "Protects against removable media (e.g., a USB drive) being pulled mid-job."
         )
@@ -93,12 +134,9 @@ class SettingsWidget(QWidget):
             "inside a zip is left untouched -- only its extracted temporary copy is affected."
         )
 
-        advanced_toggle = QToolButton()
-        advanced_toggle.setText("Advanced options")
-        advanced_toggle.setCheckable(True)
-        advanced_toggle.setChecked(False)
-        advanced_toggle.setArrowType(Qt.RightArrow)
-        advanced_toggle.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        from PySide6.QtWidgets import QPushButton
+
+        advanced_button = QPushButton("Advanced options...")
 
         self.mirror_lr_check = QCheckBox("Mirror left-right")
         self.mirror_tb_check = QCheckBox("Mirror top-bottom")
@@ -111,11 +149,14 @@ class SettingsWidget(QWidget):
         self.signature_check.toggled.connect(self._choose_signature)
         # For the whole queue.
         self.order_combo = QComboBox()
-        self.order_combo.addItem("One file after another", "files")
-        self.order_combo.addItem("One copy of each file in turn", "copies")
-        self.order_combo.addItem("Page 1 of every file, then page 2, ...", "pages")
-        self.share_sheets_check = QCheckBox("Start a file on the back of the previous file's last sheet")
-        self.eject_check = QCheckBox("Remove the drive (e.g., a pen drive) after printing")
+        for label, key, tip in (("File by file", "files", "Each file whole, with all its copies, then the next"),
+                                ("Copy by copy", "copies", "One copy of each file, then the next copy of each"),
+                                ("Page by page", "pages", "Page 1 of every file, then page 2 of every file")):
+            self.order_combo.addItem(label, key)
+            self.order_combo.setItemData(self.order_combo.count() - 1, tip, Qt.ToolTipRole)
+        self.order_combo.setToolTip("Order of the whole queue")
+        self.share_sheets_check = QCheckBox("Start each file on the back of the sheet before it")
+        self.eject_check = QCheckBox("Eject drive after printing (e.g., pen drive)")
         from ..core import settings as _settings
 
         saved = _settings.load_defaults()
@@ -150,10 +191,6 @@ class SettingsWidget(QWidget):
             marks.addWidget(box)
         marks.addStretch()
         advanced_layout.addRow(marks)
-        order_row = QHBoxLayout()
-        order_row.addWidget(QLabel("Order"))
-        order_row.addWidget(self.order_combo, 1)
-        advanced_layout.addRow(order_row)
         advanced_layout.addRow(self.share_sheets_check)
         advanced_layout.addRow(self.eject_check)
         # Only for several pages per sheet.
@@ -166,25 +203,32 @@ class SettingsWidget(QWidget):
         lines_row.addStretch()
         advanced_layout.addRow(self._grid_lines)
         advanced_layout.addRow(self.lines_frame)
-        advanced_box.setVisible(False)
+        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QVBoxLayout
 
-        def _toggle_advanced(checked: bool) -> None:
-            advanced_toggle.setArrowType(Qt.DownArrow if checked else Qt.RightArrow)
-            advanced_box.setVisible(checked)
-
-        advanced_toggle.toggled.connect(_toggle_advanced)
+        self._advanced = QDialog(self)
+        self._advanced.setWindowTitle("Advanced options")
+        dlg_layout = QVBoxLayout(self._advanced)
+        dlg_layout.addWidget(advanced_box)
+        close = QDialogButtonBox(QDialogButtonBox.Close)
+        close.rejected.connect(self._advanced.accept)
+        dlg_layout.addWidget(close)
+        advanced_button.clicked.connect(self._advanced.exec)
 
         layout = QFormLayout(self)
         layout.setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         layout.addRow("Printer", self.printer_combo)
         copy_row = QHBoxLayout()
-        copy_row.addWidget(self.copies_spin, 1)
+        copy_row.addWidget(self.copies_spin)
         copy_row.addWidget(self.collate_check)
+        copy_row.addSpacing(10)
+        copy_row.addWidget(QLabel("Order"))
+        copy_row.addWidget(self.order_combo, 1)
         layout.addRow("Copy", copy_row)
         layout.addRow("Sides", self.duplex_combo)
         nup_row = QHBoxLayout()
         nup_row.addWidget(self.nup_spin)
-        nup_row.addWidget(QLabel("Layout"))
+        self.layout_label = QLabel("Layout")
+        nup_row.addWidget(self.layout_label)
         nup_row.addWidget(self.grid_combo)
         nup_row.addStretch()
         layout.addRow("Pages per sheet", nup_row)
@@ -193,8 +237,7 @@ class SettingsWidget(QWidget):
         layout.addRow("Orientation", self.orientation_combo)
         layout.addRow("Page range", self.pages_edit)
         layout.addRow(self.fit_check)
-        layout.addRow(advanced_toggle)
-        layout.addRow(advanced_box)
+        layout.addRow(advanced_button)
 
         self._sync_grids(self.nup_spin.value())
         self.load_settings(default_print_settings())
@@ -257,11 +300,14 @@ class SettingsWidget(QWidget):
             # The drawing says it all; the size stays as a tooltip.
             self.grid_combo.addItem(self._sheet_icon(per_sheet, cols, rows), "", (cols, rows))
             self.grid_combo.setItemData(self.grid_combo.count() - 1, f"{cols} columns \u00d7 {rows} rows", Qt.ToolTipRole)
+        # Only the preset grids (no rows of one's own).
         if chosen is not None:
             self.grid_combo.setCurrentIndex(max(0, self.grid_combo.findData(chosen)))
         self.grid_combo.blockSignals(False)
         many = per_sheet > 1
         self.grid_combo.setEnabled(many)
+        if hasattr(self, "layout_label"):
+            self.layout_label.setEnabled(many)
         for box in (self.lines_rows, self.lines_cols, self.lines_frame):
             box.setEnabled(many)
             if not many:
@@ -269,6 +315,50 @@ class SettingsWidget(QWidget):
         if hasattr(self, "_grid_lines"):
             self._grid_lines.setVisible(many)
             self.lines_frame.setVisible(many)
+
+    def _rows_icon(self, rows) -> QIcon:
+        """The sheet with rows of their own, cells numbered in reading order."""
+        width, ch = 34, 13
+        w, h = width + 4, len(rows) * ch + 4
+        pix = QPixmap(w, h)
+        pix.fill(QColor("white"))
+        p = QPainter(pix)
+        p.setPen(QColor("#888"))
+        p.drawRect(0, 0, w - 1, h - 1)
+        font = QFont()
+        font.setPixelSize(8)
+        p.setFont(font)
+        k = 0
+        for r, n in enumerate(rows):
+            cw = width / n
+            for c in range(n):
+                x, y = 2 + c * cw, 2 + r * ch
+                p.fillRect(int(x) + 1, y + 1, int(cw) - 2, ch - 2, QColor("#dfe8f6"))
+                p.setPen(QColor("#335"))
+                k += 1
+                p.drawText(int(x), y, int(cw), ch, Qt.AlignCenter, str(k))
+        p.end()
+        return QIcon(pix)
+
+    def _grid_chosen(self, index: int) -> None:
+        return  # preset grids only
+        from PySide6.QtWidgets import QInputDialog
+
+        text, ok = QInputDialog.getText(self, "Rows of your own", "Pages in each row, top to bottom (for example 2, 1):",
+                                        text=", ".join(map(str, self._rows or (2, 1))))
+        try:
+            rows = tuple(int(x) for x in text.replace(" ", "").split(",") if x) if ok else ()
+        except ValueError:
+            rows = ()
+        if rows and all(0 < n <= 12 for n in rows) and len(rows) <= 12:
+            self._rows = rows
+            self.nup_spin.blockSignals(True)
+            self.nup_spin.setValue(sum(rows))
+            self.nup_spin.blockSignals(False)
+            self._sync_grids(sum(rows))
+            self.grid_combo.setCurrentIndex(self.grid_combo.findData(_rows_key(rows)))
+        else:
+            self.grid_combo.setCurrentIndex(0)
 
     def _sync_collate(self, copies: int) -> None:
         many = copies > 1
@@ -290,6 +380,14 @@ class SettingsWidget(QWidget):
             if index >= 0:
                 self.printer_combo.setCurrentIndex(index)
 
+    def _is_rows(self) -> bool:
+        d = self.grid_combo.currentData()
+        return isinstance(d, str) and d.startswith("rows:")
+
+    def _is_grid(self) -> bool:
+        d = self.grid_combo.currentData()
+        return isinstance(d, tuple) and len(d) == 2 and all(isinstance(x, int) for x in d)
+
     def to_settings(self) -> PrintSettings:
         return PrintSettings(
             printer=self.printer_combo.currentData(),
@@ -308,7 +406,8 @@ class SettingsWidget(QWidget):
             page_numbers=self.page_numbers_check.isChecked(),
             signature=self.signature_path if self.signature_check.isChecked() and self.signature_path else None,
             pages_per_sheet=self.nup_spin.value(),
-            pages_grid=self.grid_combo.currentData() if self.nup_spin.value() > 1 else None,
+            pages_grid=self.grid_combo.currentData() if self.nup_spin.value() > 1 and self._is_grid() else None,
+            pages_rows=tuple(int(x) for x in self.grid_combo.currentData()[5:].split(",")) if self.nup_spin.value() > 1 and self._is_rows() else None,
             pages_lines=self._lines() if self.nup_spin.value() > 1 else (),
         )
 

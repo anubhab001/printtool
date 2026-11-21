@@ -19,7 +19,8 @@ def test_settings_to_args_roundtrippable_shape():
     )
     args = settings_to_args(Path("doc.pdf"), settings)
 
-    assert args[:2] == ["print", "doc.pdf"]
+    # The file is given as an absolute path: A scheduled task runs elsewhere.
+    assert args[0] == "print" and Path(args[1]).is_absolute() and args[1].endswith("doc.pdf")
     assert "--printer" in args and "Office" in args
     assert "--copies" in args and "2" in args
     assert "--duplex" in args and "long_edge" in args

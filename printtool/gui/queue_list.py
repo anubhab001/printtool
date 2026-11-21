@@ -137,6 +137,7 @@ class StatusGlyphDelegate(QStyledItemDelegate):
 
 class QueueList(QListWidget):
     files_dropped = Signal(list)  # list[Path], dragged in from outside
+    urls_dropped = Signal(list)  # list[str], web links dragged in (a browser, web mail)
     files_dragged_out = Signal(list)  # list[str], dragged out and dropped nowhere
     reordered = Signal()
 
@@ -163,6 +164,27 @@ class QueueList(QListWidget):
         # own drop target still removes via its own signal, unaffected.
         drag = QDrag(self)
         drag.setMimeData(QMimeData())
+        # The file's own icon follows the pointer, with the count when several.
+        from PySide6.QtGui import QColor, QFont, QPainter, QPixmap
+
+        pix = QPixmap(40, 40)
+        pix.fill(Qt.transparent)
+        p = QPainter(pix)
+        p.drawPixmap(4, 4, items[0].icon().pixmap(32, 32))
+        if len(items) > 1:
+            p.setRenderHint(QPainter.Antialiasing)
+            p.setBrush(QColor("#2f6fd6"))
+            p.setPen(Qt.NoPen)
+            p.drawEllipse(22, 22, 18, 18)
+            p.setPen(QColor("white"))
+            f = QFont()
+            f.setPixelSize(10)
+            f.setBold(True)
+            p.setFont(f)
+            p.drawText(22, 22, 18, 18, Qt.AlignCenter, str(len(items)))
+        p.end()
+        drag.setPixmap(pix)
+        drag.setHotSpot(pix.rect().center())
         result = drag.exec(Qt.MoveAction)
 
         if result == Qt.IgnoreAction and not self.window().frameGeometry().contains(QCursor.pos()):
@@ -176,7 +198,8 @@ class QueueList(QListWidget):
         return item.data(JOB_ID_ROLE) if item else None
 
     def dragEnterEvent(self, event) -> None:  # noqa: N802 - Qt override
-        if event.source() is self or event.mimeData().hasUrls():
+        virtual = 'application/x-qt-windows-mime;value="FileGroupDescriptorW"' in event.mimeData().formats()
+        if event.source() is self or event.mimeData().hasUrls() or virtual:
             event.acceptProposedAction()
         else:
             event.ignore()
@@ -191,10 +214,23 @@ class QueueList(QListWidget):
             self.reordered.emit()
             return
 
+        from ..core import fetch
+
+        # An attachment dragged from a mail program: saved from the drag.
+        attached = fetch.virtual_files(event.mimeData())
+        if attached:
+            self.files_dropped.emit(attached)
+            event.acceptProposedAction()
+            return
+
         if event.mimeData().hasUrls():
-            paths = [Path(u.toLocalFile()) for u in event.mimeData().urls() if u.isLocalFile()]
+            urls = event.mimeData().urls()
+            paths = [Path(u.toLocalFile()) for u in urls if u.isLocalFile()]
+            web = [u.toString() for u in urls if u.scheme() in ("http", "https")]
             if paths:
                 self.files_dropped.emit(paths)
+            if web:
+                self.urls_dropped.emit(web)
             event.acceptProposedAction()
             return
 
@@ -233,18 +269,53 @@ class RemoveDropZone(QLabel):
 
     remove_requested = Signal()
 
+    _CALM = ("QLabel { background: #fdecef; border: 1px dashed #e3a1ad; border-radius: 6px; padding: 5px; color: #a8495a; }"
+             " QLabel:disabled { background: #f6f1f2; border-color: #e2d4d7; color: #c9b5b9; }")
+    _HOT = "QLabel { background: #f8c6cf; border: 1px solid #d2556b; border-radius: 6px; padding: 5px; color: #8a2236; }"
+
     def __init__(self, parent=None) -> None:
-        super().__init__("Drag a queued file here or outside to remove it", parent)
+        super().__init__(parent)
+        from PySide6.QtGui import QColor, QPainter, QPen, QPixmap
+
+        # A drawn bin, then the word: the bottom of the queue reads as the
+        # place things go to be removed.
+        pix = QPixmap(16, 16)
+        pix.fill(Qt.transparent)
+        p = QPainter(pix)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setPen(QPen(QColor("#a8495a"), 1.4))
+        p.drawLine(2, 4, 14, 4)
+        p.drawLine(6, 4, 6, 2)
+        p.drawLine(6, 2, 10, 2)
+        p.drawLine(10, 2, 10, 4)
+        p.drawRect(4, 5, 8, 9)
+        p.drawLine(7, 7, 7, 12)
+        p.drawLine(9, 7, 9, 12)
+        p.end()
+        from PySide6.QtCore import QBuffer, QByteArray, QIODevice
+
+        data = QByteArray()
+        buf = QBuffer(data)
+        buf.open(QIODevice.WriteOnly)
+        pix.save(buf, "PNG")
+        icon = "data:image/png;base64," + bytes(data.toBase64()).decode()
+        self.setText(f'<img src="{icon}" style="vertical-align: middle"> Remove')
+        self.setToolTip("Drag a queued file here, or out of the window, to remove it")
         self.setAcceptDrops(True)
         self.setAlignment(Qt.AlignCenter)
-        self.setStyleSheet("border: 1px dashed gray; padding: 6px; color: gray;")
+        self.setStyleSheet(self._CALM)
 
     def dragEnterEvent(self, event) -> None:  # noqa: N802 - Qt override
-        if event.source() is not None:
+        if event.source() is not None and self.isEnabled():
             event.acceptProposedAction()
+            self.setStyleSheet(self._HOT)
         else:
             event.ignore()
 
+    def dragLeaveEvent(self, event) -> None:  # noqa: N802 - Qt override
+        self.setStyleSheet(self._CALM)
+
     def dropEvent(self, event) -> None:  # noqa: N802 - Qt override
         event.acceptProposedAction()
+        self.setStyleSheet(self._CALM)
         self.remove_requested.emit()

@@ -11,7 +11,7 @@ from .models import PrintSettings
 
 
 def settings_to_args(path: Path, settings: PrintSettings) -> list[str]:
-    args = ["print", str(path)]
+    args = ["print", str(Path(path).resolve())]
     if settings.printer:
         args += ["--printer", settings.printer]
     args += ["--copies", str(settings.copies)]
