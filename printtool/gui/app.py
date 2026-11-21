@@ -230,7 +230,7 @@ class MainWindow(QMainWindow):
         self._page_count_cache: dict[str, int] = {}  # job_id -> pages, filled in lazily
         # Pages are counted in the background (a large PDF takes a while);
         # the counts fill in as they come.
-        from concurrent.futures import ThreadPoolExecutor
+        from concurrent.futures.thread import ThreadPoolExecutor  # its own module: a lazily loaded package breaks in a frozen build
 
         self._counter = ThreadPoolExecutor(max_workers=2, thread_name_prefix="pages")
         self._counting: set[str] = set()
@@ -844,8 +844,16 @@ class MainWindow(QMainWindow):
                 self._scan_folder(path)
                 continue
             if discovery.is_shortcut(path):
-                self._log_timestamped(label, f"{path.name} - rejected (a shortcut, not a printable file)")
-                continue
+                # A shortcut queues the file it points to (the queue shows that file).
+                target = discovery.shortcut_target(path)
+                if target is None:
+                    self._log_timestamped(label, f"{path.name} - rejected (a shortcut to nothing that exists)")
+                    continue
+                self._log_timestamped(label, f"{path.name} - the file it points to: {target}")
+                path = target
+                if target.is_dir():
+                    self._scan_folder(target)
+                    continue
             if not discovery.is_supported(path, extensions):
                 self._log_timestamped(label, f"{path.name} - rejected (not a printable file)")
                 continue

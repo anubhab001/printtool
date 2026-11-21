@@ -6,14 +6,13 @@ Prints files straight to paper, one file or a whole batch, without opening it in
 
 ## Features
 
-- One set of settings (printer, copy count, sides, pages per sheet with a drawn layout, paper size, page range, fit to page) applies to a whole batch; any queued file can override it. Both sides (long edge) is the default.
-- Files, folders and zips (nested zips included) can be included by button or by drag and drop; zip members are extracted only when printed.
-- A link can be included (File > Include URL, Ctrl+U, or dragged from a browser): A printable file is downloaded; a web page offers the printable files it links to (or prints itself, with advanced formats). An attachment dragged from a mail program is saved and queued. Downloads stay in a buffer folder removed on exit.
-- A folder or zip row has its own checkbox; light blue marks a group printed only in part, or a file with a page range.
-- "Print this" and "Print all" sit under the queue, with a progress bar showing the file printing now and its pages.
-- A queue can be paused, reordered, retried, or handed to the OS scheduler to print later.
-- The status line counts sheets of paper; files can be printed in turn, page by page, or sharing sheets.
-- A network printer can be included by IP address.
+- Settings: Printer, copies, sides, pages per sheet (preset grids), paper size, page range, fit to page; one set for the whole queue, and any file can have its own.
+- Queue: Files, folders, zips (nested too), shortcuts (the file they point to), links and mail attachments, by button or drag and drop.
+- Order: File by file, copy by copy, or page by page.
+- Print this: The chosen file. Print all: The whole queue, with the file and page printing now.
+- Pause, reorder, retry, or print later (the system's scheduler).
+- Sheets of paper counted before printing.
+- Network printers by IP address.
 
 ## Screenshots
 

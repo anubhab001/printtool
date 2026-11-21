@@ -299,7 +299,8 @@ class RemoveDropZone(QLabel):
         buf.open(QIODevice.WriteOnly)
         pix.save(buf, "PNG")
         icon = "data:image/png;base64," + bytes(data.toBase64()).decode()
-        self.setText(f'<img src="{icon}" style="vertical-align: middle"> Remove')
+        # A little smaller than the word's height, set a little apart from it.
+        self.setText(f'<img src="{icon}" width="13" height="13" style="vertical-align: middle">&nbsp;&nbsp;&nbsp;Remove')
         self.setToolTip("Drag a queued file here, or out of the window, to remove it")
         self.setAcceptDrops(True)
         self.setAlignment(Qt.AlignCenter)

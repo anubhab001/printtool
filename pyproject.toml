@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "printtool"
-version = "8"
+version = "9"
 description = "Batch PDF printing without a viewer or print dialog, as a CLI and a GUI."
 readme = "README.md"
 requires-python = ">=3.9"
