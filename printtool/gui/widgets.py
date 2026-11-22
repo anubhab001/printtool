@@ -181,24 +181,21 @@ class SettingsWidget(QWidget):
         self.grid_combo.setView(popup)
         self.grid_combo.setMaxVisibleItems(4)
 
-        advanced_box = QWidget()
-        advanced_layout = QFormLayout(advanced_box)
-        advanced_layout.addRow(self.buffer_copy_check)
-        advanced_layout.addRow(self.delete_after_print_check)
-        advanced_layout.addRow(self.mirror_lr_check)
-        advanced_layout.addRow(self.mirror_tb_check)
-        advanced_layout.addRow("Style", self.style_combo)
-        advanced_layout.addRow("Pages", self.which_combo)
-        advanced_layout.addRow(self.reverse_check)
-        advanced_layout.addRow(self.booklet_check)
+        # Advanced options in three tabs (a single column grew too tall): Pages, Marks, File and queue.
+        from PySide6.QtWidgets import QTabWidget
+
+        def tab(rows):
+            page = QWidget()
+            form = QFormLayout(page)
+            for row in rows:
+                form.addRow(*row) if isinstance(row, tuple) else form.addRow(row)
+            return page
+
         marks = QHBoxLayout()
         marks.addWidget(QLabel("On each page"))
         for box in (self.stamp_date_check, self.page_numbers_check, self.signature_check):
             marks.addWidget(box)
         marks.addStretch()
-        advanced_layout.addRow(marks)
-        advanced_layout.addRow(self.share_sheets_check)
-        advanced_layout.addRow(self.eject_check)
         # Only for several pages per sheet.
         self._grid_lines = QWidget()
         lines_row = QHBoxLayout(self._grid_lines)
@@ -207,8 +204,11 @@ class SettingsWidget(QWidget):
         lines_row.addWidget(self.lines_rows)
         lines_row.addWidget(self.lines_cols)
         lines_row.addStretch()
-        advanced_layout.addRow(self._grid_lines)
-        advanced_layout.addRow(self.lines_frame)
+        advanced_box = QTabWidget()
+        advanced_box.addTab(tab([("Style", self.style_combo), ("Pages", self.which_combo), self.reverse_check, self.booklet_check,
+                                 self.mirror_lr_check, self.mirror_tb_check]), "Pages")
+        advanced_box.addTab(tab([marks, self._grid_lines, self.lines_frame]), "Marks")
+        advanced_box.addTab(tab([self.buffer_copy_check, self.delete_after_print_check, self.share_sheets_check, self.eject_check]), "File and queue")
         from PySide6.QtWidgets import QDialog, QDialogButtonBox, QVBoxLayout
 
         self._advanced = QDialog(self)
