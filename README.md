@@ -14,6 +14,7 @@ Prints files straight to paper, one file or a whole batch, without opening it in
 - Sheets of paper counted before printing.
 - Pages checked before printing: A blank page, a scan with a gray veil, or content in a small part of the page (a receipt in a corner, a scan taken at A0) is offered for skipping, filtering or zooming to fill the paper; presets in Queue behavior.
 - Network printers by IP address, beside the printers found by themselves.
+- Odd or even pages only, reverse order, booklet (two pages per side in folding order), and two-sided printing by hand for a one-sided printer; settings kept as named presets (Advanced).
 - Printing style (Advanced): Color, grayscale, washed out, high or low contrast, color or grayscale negative, sepia; white paper stays white wherever it can.
 
 ## Screenshots

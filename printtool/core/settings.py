@@ -30,6 +30,7 @@ DEFAULTS: dict = {
     "on_blank_page": "ask",  # ask, skip or print
     "on_noisy_scan": "ask",  # ask, filter or print
     "on_small_content": "ask",  # ask, zoom or print
+    "presets": {},  # named sets of print settings (Advanced > Presets)
     "interleave_copies": False,
     "blank_page_insertion": "none",  # one of: none, before, after, both
     "stamp_timestamp": False,
@@ -56,6 +57,7 @@ _COMMENTS: dict = {
     "on_blank_page": "A blank or nearly blank page (a page number alone): ask, skip or print.",
     "on_noisy_scan": "A scan with a gray veil or specks: ask, filter (text and pictures kept) or print.",
     "on_small_content": "Content in a small part of the page (a scan taken at A0, a receipt in a corner): ask, zoom (to fill the paper) or print.",
+    "presets": "Named sets of print settings, saved and applied from Advanced > Presets.",
     "interleave_copies": "Round-robin one copy of each queued file at a time instead of finishing one file's copies before starting the next.",
     "blank_page_insertion": "Print an extra blank page before/after/both around every queued file; one of none, before, after, both.",
     "stamp_timestamp": "Stamp the current date/time in the bottom-right corner of every printed PDF page (PDF files only).",

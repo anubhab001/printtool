@@ -50,6 +50,11 @@ def print_file(path: Path, settings: PrintSettings) -> PrintResult:
                 temp_dirs.append(str(mirrored.parent))
                 print_path = mirrored
 
+        arranged = pages.arrange_pdf(print_path, getattr(settings, "which_pages", "all"), getattr(settings, "reverse", False), getattr(settings, "booklet", False))
+        if arranged is not None:
+            temp_dirs.append(str(arranged.parent))
+            print_path = arranged
+
         if getattr(settings, "style", "color") not in ("", "color"):
             from . import style as _style
 

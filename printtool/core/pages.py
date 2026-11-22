@@ -108,6 +108,58 @@ def mirror_pdf(path: Path, horizontal: bool, vertical: bool) -> Path | None:
         return None
 
 
+def arrange_pdf(path: Path, which: str = "all", reverse: bool = False, booklet: bool = False) -> Path | None:
+    """A copy with only the odd or the even pages (`which`), in reverse order, or laid out as a booklet (two pages side by side on each side of a sheet, in the order that folds into a book); None when there is nothing to do or the file is not a PDF."""
+    if PdfReader is None or path.suffix.lower() != ".pdf" or (which == "all" and not reverse and not booklet):
+        return None
+    try:
+        reader = PdfReader(str(path))
+        pages = list(reader.pages)
+        if booklet:
+            pages = _booklet(pages)
+        if which in ("odd", "even"):
+            pages = pages[0 if which == "odd" else 1::2]
+        if reverse:
+            pages = pages[::-1]
+        writer = PdfWriter()
+        for page in pages:
+            writer.add_page(page)
+        dest = scratch.folder("printtool-arrange-") / path.name
+        with open(dest, "wb") as f:
+            writer.write(f)
+        return dest
+    except Exception:
+        return None
+
+
+def booklet_order(n: int) -> list[tuple[int | None, int | None]]:
+    """The pairs of pages (left, right) on each side of each sheet of a folded booklet of `n` pages (None: a blank side), outer sheet first: 8 pages give (8, 1), (2, 7), (6, 3), (4, 5)."""
+    total = (n + 3) // 4 * 4
+    pairs = []
+    lo, hi = 1, total
+    while lo < hi:
+        pairs.append((hi, lo))
+        pairs.append((lo + 1, hi - 1))
+        lo, hi = lo + 2, hi - 2
+    return [(a if a <= n else None, b if b <= n else None) for a, b in pairs]
+
+
+def _booklet(pages: list) -> list:
+    """Each booklet side as one landscape page holding two pages, the larger page size, side by side."""
+    from pypdf._page import PageObject
+
+    w = max(float(p.mediabox.width) for p in pages)
+    h = max(float(p.mediabox.height) for p in pages)
+    out = []
+    for left, right in booklet_order(len(pages)):
+        sheet = PageObject.create_blank_page(width=2 * w, height=h)
+        for k, number in enumerate((left, right)):
+            if number is not None:
+                sheet.merge_transformed_page(pages[number - 1], Transformation().translate(k * w, 0))
+        out.append(sheet)
+    return out
+
+
 def grids_for(per_sheet: int) -> list[tuple[int, int]]:
     """(columns, rows) layouts for `per_sheet` pages, closest to square first: every exact fit, and for a prime count also the layouts of the next number with one cell left blank (7: 2 x 4, 4 x 2, 1 x 7, 7 x 1)."""
     if per_sheet <= 1:

@@ -37,6 +37,9 @@ class PrintSettings:
     delete_after_print: bool = False  # delete the original file once printing succeeds
     mirror_lr: bool = False  # mirror left-right before printing (PDF only)
     mirror_tb: bool = False  # mirror top-bottom before printing (PDF only)
+    which_pages: str = "all"  # all, odd or even
+    reverse: bool = False  # last page first
+    booklet: bool = False  # two pages per sheet side in folding order (print both sides, fold in the middle)
     style: str = "color"  # color, gray, washed, high, low, negative, gray_negative or sepia (PDF only; core/style.py)
     # Added to each page before printing (PDF only).
     stamp_date: bool = False
@@ -64,6 +67,9 @@ class PrintSettings:
             "mirror_lr": self.mirror_lr,
             "mirror_tb": self.mirror_tb,
             "style": self.style,
+            "which_pages": self.which_pages,
+            "reverse": self.reverse,
+            "booklet": self.booklet,
             "stamp_date": self.stamp_date,
             "page_numbers": self.page_numbers,
             "signature": self.signature,

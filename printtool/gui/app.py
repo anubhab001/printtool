@@ -41,7 +41,7 @@ from ..core import archive, backend, discovery, network_printer, pages, preview,
 from ..core import settings
 from ..core.settings import ensure_settings_file
 from ..core.cli_args import settings_to_args
-from ..core.models import Duplex, JobStatus, PrintJob, PrintSettings
+from ..core.models import Duplex, JobStatus, Orientation, PrintJob, PrintSettings
 from .folder_picker import FolderPickerDialog
 from .queue_list import (
     JOB_ID_ROLE,
@@ -462,6 +462,9 @@ class MainWindow(QMainWindow):
         view_menu.addAction("Settings file", self._open_settings_file)
 
         advanced_menu = menu_bar.addMenu("&Advanced")
+        self._presets_menu = advanced_menu.addMenu("Presets")
+        self._fill_presets()
+        advanced_menu.addAction("Print two-sided by hand...", self._print_two_sided_by_hand)
 
         scanning_menu = advanced_menu.addMenu("Detail")
         self.advanced_formats_action = scanning_menu.addAction("Show advanced file formats when scanning")
@@ -1499,6 +1502,89 @@ class MainWindow(QMainWindow):
             if job is not None and item.checkState() != Qt.Unchecked:
                 ordered_jobs.append(job)
         self._start_worker(ordered_jobs)
+
+    def _checked_jobs(self) -> list[PrintJob]:
+        out = []
+        for row in range(self.file_list.count()):
+            item = self.file_list.item(row)
+            job = self.jobs.get(item.data(JOB_ID_ROLE))
+            if job is not None and item.checkState() != Qt.Unchecked:
+                out.append(job)
+        return out
+
+    def _print_two_sided_by_hand(self) -> None:
+        """For a printer that prints one side only: The odd pages first; then, once the stack is turned over and put back, the even pages, last first."""
+        import dataclasses
+
+        jobs = self._checked_jobs()
+        if not jobs:
+            QMessageBox.information(self, "Nothing to print", "The queue is empty.")
+            return
+        odd = [dataclasses.replace(j, settings=dataclasses.replace(j.settings, which_pages="odd", duplex=Duplex.NONE)) for j in jobs]
+        even = [dataclasses.replace(j, settings=dataclasses.replace(j.settings, which_pages="even", reverse=True, duplex=Duplex.NONE)) for j in jobs]
+
+        def second_pass():
+            self.worker.finished_all.disconnect(second_pass)
+            if QMessageBox.question(self, "Two-sided by hand", "The odd pages are printed. Turn the stack over, put it back in the tray, then go on.",
+                                    QMessageBox.Ok | QMessageBox.Cancel) == QMessageBox.Ok:
+                self._start_worker(even)
+
+        self._start_worker(odd)
+        if self.worker is not None:
+            self.worker.finished_all.connect(second_pass)
+
+    def _presets(self) -> dict:
+        return dict(settings.load_defaults().get("presets") or {})
+
+    def _save_preset(self) -> None:
+        """The settings now shown, kept under a name (Advanced > Presets)."""
+        import dataclasses
+        import enum
+
+        name, ok = QInputDialog.getText(self, "Preset", "Name for these settings:")
+        if not ok or not name.strip():
+            return
+        data = {k: (v.value if isinstance(v, enum.Enum) else (list(v) if isinstance(v, tuple) else v))
+                for k, v in dataclasses.asdict(self.settings_widget.to_settings()).items()}
+        presets = self._presets()
+        presets[name.strip()] = data
+        settings.save_defaults({"presets": presets})
+        self._fill_presets()
+
+    def _apply_preset(self, name: str) -> None:
+        from ..core.models import PrintSettings
+
+        data = dict(self._presets().get(name) or {})
+        if not data:
+            return
+        data["duplex"] = Duplex(data.get("duplex", Duplex.LONG_EDGE.value))
+        data["orientation"] = Orientation(data.get("orientation", Orientation.AUTO.value))
+        for key in ("pages_grid", "pages_rows"):
+            if data.get(key) is not None:
+                data[key] = tuple(data[key])
+        data["pages_lines"] = tuple(data.get("pages_lines") or ())
+        known = {f.name for f in __import__("dataclasses").fields(PrintSettings)}
+        self.settings_widget.load_settings(PrintSettings(**{k: v for k, v in data.items() if k in known}))
+        self.log.appendPlainText(f"Preset {name} applied.")
+
+    def _delete_preset(self, name: str) -> None:
+        presets = self._presets()
+        presets.pop(name, None)
+        settings.save_defaults({"presets": presets})
+        self._fill_presets()
+
+    def _fill_presets(self) -> None:
+        m = self._presets_menu
+        m.clear()
+        m.addAction("Save current settings as...", self._save_preset)
+        presets = self._presets()
+        if presets:
+            m.addSeparator()
+            for name in sorted(presets):
+                m.addAction(name, lambda n=name: self._apply_preset(n))
+            gone = m.addMenu("Remove")
+            for name in sorted(presets):
+                gone.addAction(name, lambda n=name: self._delete_preset(n))
 
     def _print_selected_now(self) -> None:
         items = self.file_list.selectedItems()

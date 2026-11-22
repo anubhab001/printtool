@@ -30,4 +30,10 @@ def settings_to_args(path: Path, settings: PrintSettings) -> list[str]:
         args.append("--mirror-tb")
     if getattr(settings, "style", "color") not in ("", "color"):
         args += ["--style", settings.style]
+    if getattr(settings, "which_pages", "all") != "all":
+        args += ["--which", settings.which_pages]
+    if getattr(settings, "reverse", False):
+        args.append("--reverse")
+    if getattr(settings, "booklet", False):
+        args.append("--booklet")
     return args

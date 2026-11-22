@@ -140,6 +140,11 @@ class SettingsWidget(QWidget):
         for label, value in STYLES:
             self.style_combo.addItem(label, value)
         self.style_combo.setToolTip("Printing style: Each page drawn again in it (PDF only).")
+        self.which_combo = QComboBox()
+        for label, value in (("All pages", "all"), ("Odd pages only", "odd"), ("Even pages only", "even")):
+            self.which_combo.addItem(label, value)
+        self.reverse_check = QCheckBox("Reverse order (last page first)")
+        self.booklet_check = QCheckBox("Booklet (print both sides, fold in the middle)")
         # Added to each page; on a sheet of several pages each shrinks with its page.
         self.stamp_date_check = QCheckBox("Date and time")
         self.page_numbers_check = QCheckBox("Page numbers")
@@ -183,6 +188,9 @@ class SettingsWidget(QWidget):
         advanced_layout.addRow(self.mirror_lr_check)
         advanced_layout.addRow(self.mirror_tb_check)
         advanced_layout.addRow("Style", self.style_combo)
+        advanced_layout.addRow("Pages", self.which_combo)
+        advanced_layout.addRow(self.reverse_check)
+        advanced_layout.addRow(self.booklet_check)
         marks = QHBoxLayout()
         marks.addWidget(QLabel("On each page"))
         for box in (self.stamp_date_check, self.page_numbers_check, self.signature_check):
@@ -376,6 +384,9 @@ class SettingsWidget(QWidget):
             mirror_lr=self.mirror_lr_check.isChecked(),
             mirror_tb=self.mirror_tb_check.isChecked(),
             style=self.style_combo.currentData() or "color",
+            which_pages=self.which_combo.currentData() or "all",
+            reverse=self.reverse_check.isChecked(),
+            booklet=self.booklet_check.isChecked(),
             stamp_date=self.stamp_date_check.isChecked(),
             page_numbers=self.page_numbers_check.isChecked(),
             signature=self.signature_path if self.signature_check.isChecked() and self.signature_path else None,
@@ -403,6 +414,10 @@ class SettingsWidget(QWidget):
         self.mirror_tb_check.setChecked(settings.mirror_tb)
         k = self.style_combo.findData(getattr(settings, "style", "color"))
         self.style_combo.setCurrentIndex(k if k >= 0 else 0)
+        k = self.which_combo.findData(getattr(settings, "which_pages", "all"))
+        self.which_combo.setCurrentIndex(k if k >= 0 else 0)
+        self.reverse_check.setChecked(getattr(settings, "reverse", False))
+        self.booklet_check.setChecked(getattr(settings, "booklet", False))
         self.stamp_date_check.setChecked(settings.stamp_date)
         self.page_numbers_check.setChecked(settings.page_numbers)
         self.signature_path = settings.signature or ""
