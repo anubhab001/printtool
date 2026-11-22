@@ -459,18 +459,24 @@ class MainWindow(QMainWindow):
         self.auto_preview_action.triggered.connect(self._on_toggle_auto_preview)
         view_menu.addSeparator()
         view_menu.addAction("Printable format...", self._edit_file_types)
-        view_menu.addAction("Settings file", self._open_settings_file)
 
         advanced_menu = menu_bar.addMenu("&Advanced")
+        # Presets are kept in printtool's own settings, not in a file of their own.
+        save_preset = advanced_menu.addAction("Save settings as preset...", self._save_preset)
+        save_preset.setToolTip("The settings now shown, kept under a name to apply again later")
         self._presets_menu = advanced_menu.addMenu("Presets")
         self._fill_presets()
-        advanced_menu.addAction("Print two-sided by hand...", self._print_two_sided_by_hand)
+        self._two_sided_action = advanced_menu.addAction("Two-sided on a one-sided printer...", self._print_two_sided_by_hand)
+        self._two_sided_action.setToolTip("Odd pages first; then the stack is turned over and put back, and the even pages print on the backs")
+        self._two_sided_action.setEnabled(False)  # until the queue holds something
+        advanced_menu.setToolTipsVisible(True)
+        advanced_menu.addSeparator()
 
         scanning_menu = advanced_menu.addMenu("Detail")
         self.advanced_formats_action = scanning_menu.addAction("Show advanced file formats when scanning")
         self.advanced_formats_action.setCheckable(True)
         self.advanced_formats_action.setToolTip(
-            "Also offer settings.yaml's advanced_extensions (e.g., txt, log, html) when scanning a folder or zip."
+            "Also offer the advanced formats (e.g., txt, log, html) when scanning a folder or zip."
         )
         self.advanced_stats_action = scanning_menu.addAction("Show advanced print statistics")
         self.advanced_stats_action.setCheckable(True)
@@ -567,13 +573,10 @@ class MainWindow(QMainWindow):
         self.file_list.itemChanged.connect(self._on_item_changed)
         self._syncing_checks = False
 
-    def _open_settings_file(self) -> None:
-        preview.open_in_default_viewer(ensure_settings_file())
-
     def _edit_file_types(self) -> None:
         from .file_types import FileTypesDialog  # loaded on demand to keep startup fast
 
-        FileTypesDialog(self._open_settings_file, self).exec()
+        FileTypesDialog(self).exec()
 
     HELP_HTML = """
 <style>
@@ -627,15 +630,18 @@ class MainWindow(QMainWindow):
 """
 
     def _show_help(self, section: str = "queue") -> None:
-        """Help: one window of short points, opened at `section`."""
+        """Help: Guide (short points) and Keyboard shortcut (the key table), each a window of its own."""
         from PySide6.QtWidgets import QDialogButtonBox, QTextBrowser
 
         dlg = QDialog(self)
-        dlg.setWindowTitle("Help")
-        dlg.resize(620, 560)
+        style_end = self.HELP_HTML.index("</style>") + len("</style>")
+        keys_at = self.HELP_HTML.index('<h3 id="keys"')
+        keys = section == "keys"
+        dlg.setWindowTitle("Keyboard shortcut" if keys else "Guide")
+        dlg.resize(*((420, 330) if keys else (620, 560)))
         view = QTextBrowser()
         view.setOpenExternalLinks(True)
-        view.setHtml(self.HELP_HTML)
+        view.setHtml(self.HELP_HTML[:style_end] + (self.HELP_HTML[keys_at:] if keys else self.HELP_HTML[style_end:keys_at]))
         view.scrollToAnchor(section)
         close = QDialogButtonBox(QDialogButtonBox.Close)
         close.rejected.connect(dlg.accept)
@@ -797,6 +803,8 @@ class MainWindow(QMainWindow):
         jobs = list(self.jobs.values())
         self.print_all_btn.setEnabled(bool(jobs))
         self.print_all_action.setEnabled(bool(jobs))
+        if hasattr(self, "_two_sided_action"):
+            self._two_sided_action.setEnabled(bool(jobs))
         if not jobs:
             self.queue_stats_label.setText("")
             self.advanced_stats_label.setText("")
@@ -1525,7 +1533,7 @@ class MainWindow(QMainWindow):
 
         def second_pass():
             self.worker.finished_all.disconnect(second_pass)
-            if QMessageBox.question(self, "Two-sided by hand", "The odd pages are printed. Turn the stack over, put it back in the tray, then go on.",
+            if QMessageBox.question(self, "Two-sided on a one-sided printer", "The odd pages are printed. Turn the stack over, put it back in the tray, then go on.",
                                     QMessageBox.Ok | QMessageBox.Cancel) == QMessageBox.Ok:
                 self._start_worker(even)
 
@@ -1576,10 +1584,9 @@ class MainWindow(QMainWindow):
     def _fill_presets(self) -> None:
         m = self._presets_menu
         m.clear()
-        m.addAction("Save current settings as...", self._save_preset)
         presets = self._presets()
+        m.setEnabled(bool(presets))  # nothing to choose until a preset is saved
         if presets:
-            m.addSeparator()
             for name in sorted(presets):
                 m.addAction(name, lambda n=name: self._apply_preset(n))
             gone = m.addMenu("Remove")

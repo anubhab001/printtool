@@ -24,6 +24,7 @@ DEFAULTS: dict = {
     "orientation": Orientation.AUTO.value,
     "auto_preview_before_print": False,
     "printable_extensions": ["pdf"],
+    "custom_extensions": [],  # formats added by hand in Printable formats
     "advanced_extensions": ["txt", "log", "html"],
     "auto_scan_pwd": True,
     "warn_on_blank_pages": True,
@@ -51,6 +52,7 @@ _COMMENTS: dict = {
     "orientation": f"One of: {', '.join(o.value for o in Orientation)}.",
     "auto_preview_before_print": "Open each file in the default viewer right before it prints.",
     "printable_extensions": "File extensions (no dots) always offered as printable, e.g. when scanning a folder or zip.",
+    "custom_extensions": "Formats added by hand in Printable formats (ticked or not).",
     "advanced_extensions": "Extra extensions offered only with advanced options on. Printing one works only as well as the OS backend (SumatraPDF/CUPS) supports that format; nothing here is converted to PDF first.",
     "auto_scan_pwd": "Queue the current folder's printable files (zip contents included) automatically on startup.",
     "warn_on_blank_pages": "Check each page before printing: A blank page can be skipped, a scan with noise filtered, small content zoomed to fill the sheet (asked file by file).",

@@ -37,7 +37,7 @@ pip install -e ".[gui]"
 python scripts/fetch_sumatra.py   # Windows only, once
 ```
 
-Defaults live in a hand-editable `settings.yaml` (`printtool settings-path` prints its location). The "Printable formats..." button above the queue chooses which formats count as printable; only PDF is on by default.
+Defaults are kept in `settings.yaml` (`printtool settings-path` prints its location). The "Printable formats..." button above the queue chooses which formats count as printable, from a preset list or formats added by hand; only PDF is on by default.
 
 <img src="docs/printtool-file-types.png" alt="Printable formats window" width="260">
 
