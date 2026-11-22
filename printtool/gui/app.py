@@ -118,8 +118,7 @@ class PrintWorker(QThread):
             if self._auto_preview:
                 preview.open_in_default_viewer(job.path)
             print_path = job.path
-            # The stamp goes on each original page first, so on a sheet of
-            # several pages it shrinks along with its page.
+            # The stamp goes on each original page first, so on a sheet of several pages it shrinks along with its page.
             st = job.settings
             if st.stamp_date or st.page_numbers or st.signature:
                 stamped = pages.stamp_pdf(print_path, st.stamp_date, st.page_numbers, st.signature)
@@ -228,8 +227,7 @@ class MainWindow(QMainWindow):
         self.worker: PrintWorker | None = None
         self._print_run_started: datetime | None = None
         self._page_count_cache: dict[str, int] = {}  # job_id -> pages, filled in lazily
-        # Pages are counted in the background (a large PDF takes a while);
-        # the counts fill in as they come.
+        # Pages are counted in the background (a large PDF takes a while); the counts fill in as they come.
         from concurrent.futures.thread import ThreadPoolExecutor  # its own module: a lazily loaded package breaks in a frozen build
 
         self._counter = ThreadPoolExecutor(max_workers=2, thread_name_prefix="pages")
@@ -244,7 +242,7 @@ class MainWindow(QMainWindow):
         default = backend.default_printer()
         self._printers = printers  # reused by dialogs, so opening one does not re-query printers
 
-        # --- left: queue + add buttons ---
+        # Left: The queue and the buttons that add to it.
         self.file_list = QueueList()
         self.file_list.setItemDelegate(StatusGlyphDelegate(self.file_list))
         self.file_list.itemDoubleClicked.connect(self._edit_selected_settings)
@@ -329,8 +327,7 @@ class MainWindow(QMainWindow):
         left.addLayout(queue_header)
         left.addWidget(self.file_list)
         left.addLayout(stats_row)
-        # A short bar with the file printing now beside it (its own name
-        # only, shortened in the middle when long).
+        # A short bar with the file printing now beside it (its own name only, shortened in the middle when long).
         self.progress_bar = QProgressBar()
         self.progress_bar.setTextVisible(True)
         # Room for "9999/9999 sheets", the most it shows.
@@ -354,7 +351,7 @@ class MainWindow(QMainWindow):
         left.addWidget(self.remove_zone)
         left.addLayout(file_buttons)
 
-        # --- right: global settings + print/queue controls ---
+        # Right: The settings for the whole queue, and printing.
         self.settings_widget = SettingsWidget(printers, self)
         refresh_btn = QPushButton("Refresh printers")
         refresh_btn.clicked.connect(self._refresh_printers)
@@ -415,18 +412,14 @@ class MainWindow(QMainWindow):
         if not printers:
             self.log.appendPlainText(
                 "No printers detected yet. Click 'Refresh printers' after connecting one, "
-                "or check your OS print setup."
+                "or check the OS print setup."
             )
 
         if settings.load_auto_scan_pwd():
             self._auto_scan_pwd()
 
     def _auto_scan_pwd(self) -> None:
-        # Unlike "Scan current folder...", this runs unattended on
-        # startup, so it skips the picker dialogs (a modal prompt on
-        # every launch would be more disruptive than useful) and just
-        # queues what it finds directly, same extensions a manual scan
-        # would default to (printable_extensions, not the advanced set).
+        # Unlike "Scan current folder...", this runs unattended on startup, so it skips the picker dialogs (a modal prompt on every launch would be more disruptive than useful) and just queues what it finds directly, same extensions a manual scan would default to (printable_extensions, not the advanced set).
         cwd = Path.cwd()
         extensions = settings.load_extensions(advanced=False)
         found = discovery.find_printable_files(cwd, extensions, recursive=False)
@@ -479,15 +472,27 @@ class MainWindow(QMainWindow):
         self.advanced_stats_action = scanning_menu.addAction("Show advanced print statistics")
         self.advanced_stats_action.setCheckable(True)
         self.advanced_stats_action.setToolTip(
-            "Paper area and a rough ink/power estimate, assuming average page coverage -- not a measurement."
+            "Paper area and a rough ink and power estimate, assuming average page coverage (an estimate, not a measurement)."
         )
         self.advanced_stats_action.triggered.connect(lambda: self._update_queue_stats())
 
         queue_behavior_menu = advanced_menu.addMenu("Queue behavior")
-        self.blank_area_warning_action = queue_behavior_menu.addAction("Warn on mostly-blank pages before printing")
+        self.blank_area_warning_action = queue_behavior_menu.addAction("Check pages before printing (blank, noisy scan, small content)")
         self.blank_area_warning_action.setCheckable(True)
         self.blank_area_warning_action.setChecked(settings.load_warn_on_blank_pages())
         self.blank_area_warning_action.triggered.connect(settings.save_warn_on_blank_pages)
+        # What the check does without asking, kind by kind: Ask (the default), or always the same.
+        current = settings.load_defaults()
+        for key, title, acts in (("on_blank_page", "Blank page", (("Ask", "ask"), ("Skip", "skip"), ("Print", "print"))),
+                                 ("on_noisy_scan", "Scan with noise", (("Ask", "ask"), ("Filter", "filter"), ("Print as is", "print"))),
+                                 ("on_small_content", "Small content", (("Ask", "ask"), ("Zoom to fill", "zoom"), ("Print as is", "print")))):
+            sub = queue_behavior_menu.addMenu(title)
+            group = QActionGroup(sub)
+            for label, value in acts:
+                act = sub.addAction(label, lambda k=key, v=value: settings.save_defaults({k: v}))
+                act.setCheckable(True)
+                act.setChecked(current.get(key, "ask") == value)
+                group.addAction(act)
         self.interleave_copies_action = queue_behavior_menu.addAction(
             "Interleave copies across the queue (1,2,1,2...)"
         )
@@ -533,8 +538,7 @@ class MainWindow(QMainWindow):
 
     def _init_toolbar(self) -> None:
         style = self.style()
-        # Not shown: The buttons under the queue do the same. The actions are
-        # kept for the menus and for enabling with the selection.
+        # Not shown: The buttons under the queue do the same. The actions are kept for the menus and for enabling with the selection.
         toolbar = QToolBar("Main")
         self._actions_holder = toolbar
 
@@ -657,7 +661,7 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+C"), self, activated=self._duplicate_selected)
         QShortcut(QKeySequence("Ctrl+X"), self, activated=self._remove_selected)
 
-    # -- queue item helpers --
+    # Queue items
 
     def _make_item(self, job: PrintJob) -> QListWidgetItem:
         item = QListWidgetItem(str(job.path))
@@ -681,7 +685,7 @@ class MainWindow(QMainWindow):
                 item.setToolTip(job.message if job.status == JobStatus.FAILED else "")
                 return
 
-    # -- file management --
+    # Files
 
     def _log_timestamped(self, label: str, message: str) -> None:
         stamp = datetime.now().strftime("%H:%M:%S")
@@ -699,8 +703,7 @@ class MainWindow(QMainWindow):
         return pages.count_pages(job.path)
 
     def _job_pages(self, job: PrintJob, wait: bool = False) -> int | None:
-        """The page count if known; otherwise it is counted in the background
-        (None until then), or here and now with `wait`."""
+        """The page count if known; otherwise it is counted in the background (None until then), or here and now with `wait`."""
         if job.job_id in self._page_count_cache:
             return self._page_count_cache[job.job_id]
         if wait:
@@ -755,8 +758,7 @@ class MainWindow(QMainWindow):
         )
 
     def _sheets(self, jobs) -> int:
-        """Sheets of paper the queue will use, from each file's pages per
-        sheet, sides and copies."""
+        """Sheets of paper the queue will use, from each file's pages per sheet, sides and copies."""
         share = self.settings_widget.share_sheets_check.isChecked()
         total = 0
         run: list[int] = []
@@ -773,9 +775,7 @@ class MainWindow(QMainWindow):
         return total
 
     def _sync_enabled(self) -> None:
-        """What needs files is off with an empty queue, and what needs a
-        chosen file is off without one; Default settings stay on, to be set
-        before any file is in."""
+        """What needs files is off with an empty queue, and what needs a chosen file is off without one; Default settings stay on, to be set before any file is in."""
         if not hasattr(self, "_clear_btn"):
             return
         has = bool(self.jobs)
@@ -830,10 +830,7 @@ class MainWindow(QMainWindow):
             self.advanced_stats_label.setText("")
 
     def _add_paths(self, paths: list[Path], *, label: str = "File added") -> None:
-        # The same file can be queued more than once (e.g. to print it with
-        # two different settings, or just twice), so jobs are keyed by a
-        # generated job_id rather than by path; nothing here deduplicates,
-        # but a repeat is called out in the log for visibility.
+        # The same file can be queued more than once (e.g. to print it with two different settings, or just twice), so jobs are keyed by a generated job_id rather than by path; nothing here deduplicates, but a repeat is called out in the log for visibility.
         global_settings = self.settings_widget.to_settings()
         extensions = settings.load_extensions(advanced=self.advanced_formats_action.isChecked())
         for path in paths:
@@ -866,10 +863,7 @@ class MainWindow(QMainWindow):
         self._update_queue_stats()
 
     def _handle_archive(self, zip_path: Path, label: str) -> None:
-        # No confirmation dialog: every printable file in the zip (nested
-        # zips included) is tracked as its own queue row right away,
-        # indented like `tree` under the zip's own row, each individually
-        # checkable; nothing is actually extracted until it is printed.
+        # No confirmation dialog: every printable file in the zip (nested zips included) is tracked as its own queue row right away, indented like `tree` under the zip's own row, each individually checkable; nothing is actually extracted until it is printed.
         extensions = settings.load_extensions(advanced=self.advanced_formats_action.isChecked())
         try:
             tree = archive.build_tree(zip_path, extensions)
@@ -909,8 +903,7 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _tree_lines(node, depth: int = 1):
-        """[(indent, child_node), ...] depth-first; each level is indented
-        a little further instead of drawing `tree`-style connector lines."""
+        """[(indent, child_node), ...] depth-first; each level is indented a little further instead of drawing `tree`-style connector lines."""
         lines = []
         for child in node.children:
             lines.append((_INDENT * depth, child))
@@ -932,8 +925,7 @@ class MainWindow(QMainWindow):
         self._add_paths(paths, label="File dragged")
 
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt override
-        """Closing while printing: Ask; a yes stops the queue cleanly (the job
-        on the printer finishes) before the window goes."""
+        """Closing while printing: Ask; a yes stops the queue cleanly (the job on the printer finishes) before the window goes."""
         worker = getattr(self, "worker", None)
         if worker is not None and worker.isRunning():
             answer = QMessageBox.question(self, "Printing", "Printing is in progress. Stop the queue and close?")
@@ -953,8 +945,7 @@ class MainWindow(QMainWindow):
             self._include_urls([url.strip()])
 
     def _include_urls(self, urls: list[str]) -> None:
-        """Links: Printable files are downloaded to the buffer and queued; a
-        web page offers the printable files it links to (or itself)."""
+        """Links: Printable files are downloaded to the buffer and queued; a web page offers the printable files it links to (or itself)."""
         from PySide6.QtCore import QThread, Signal
 
         from ..core import fetch
@@ -1051,8 +1042,7 @@ class MainWindow(QMainWindow):
         rows = [header]
         global_settings = self.settings_widget.to_settings()
         dir_icon = self.style().standardIcon(QStyle.SP_DirIcon)
-        # Subfolders get rows of their own, as nested zips do: each level is
-        # indented further, files directly in a folder before its subfolders.
+        # Subfolders get rows of their own, as nested zips do: each level is indented further, files directly in a folder before its subfolders.
         def rel_of(path: Path) -> Path:
             try:
                 return path.relative_to(folder)
@@ -1135,8 +1125,7 @@ class MainWindow(QMainWindow):
             self.file_list.addItem(item)
 
     def _group_rows(self, header: QListWidgetItem) -> list[QListWidgetItem]:
-        """`header` plus every row (including itself) tracked under it, in
-        the order they currently sit in the list."""
+        """`header` plus every row (including itself) tracked under it, in the order they currently sit in the list."""
         return [
             self.file_list.item(row)
             for row in range(self.file_list.count())
@@ -1156,8 +1145,7 @@ class MainWindow(QMainWindow):
         for row in sorted(to_remove, reverse=True):
             self.file_list.takeItem(row)
 
-        # A zip header whose children are now all gone is left behind as
-        # an empty, pointless row; drop it too.
+        # A zip header whose children are now all gone is left behind as an empty, pointless row; drop it too.
         self._prune_empty_zip_headers()
         self._update_queue_stats()
 
@@ -1171,8 +1159,7 @@ class MainWindow(QMainWindow):
                 self.file_list.takeItem(row)
 
     def _on_files_dragged_out(self, paths: list[str]) -> None:
-        # The items are already gone from the list widget itself (see
-        # QueueList.startDrag); only the jobs dict still needs cleaning up.
+        # The items are already gone from the list widget itself (by QueueList.startDrag); only the jobs dict still needs cleaning up.
         for path in paths:
             self.jobs.pop(path, None)
         self._update_queue_stats()
@@ -1213,9 +1200,7 @@ class MainWindow(QMainWindow):
         return [item.data(JOB_ID_ROLE) for item in self.file_list.selectedItems()]
 
     def _move_selected(self, direction: int) -> None:
-        # Any row belonging to a zip moves its whole block (header plus
-        # every tracked child) together, so a child row can never end up
-        # reordered away from its own header.
+        # Any row belonging to a zip moves its whole block (header plus every tracked child) together, so a child row can never end up reordered away from its own header.
         blocks: list[list[QListWidgetItem]] = []
         seen_headers: set[int] = set()
         for item in self.file_list.selectedItems():
@@ -1287,9 +1272,7 @@ class MainWindow(QMainWindow):
             preview.open_in_default_viewer(path)
 
     def _on_item_changed(self, item: QListWidgetItem) -> None:
-        """Keeps checkboxes meaningful: a group row toggles all its files, a
-        group shows light blue when only some are checked, and a file with
-        a page range shows light blue since not all of its pages print."""
+        """Keeps checkboxes meaningful: a group row toggles all its files, a group shows light blue when only some are checked, and a file with a page range shows light blue since not all of its pages print."""
         if self._syncing_checks:
             return
         self._syncing_checks = True
@@ -1378,7 +1361,7 @@ class MainWindow(QMainWindow):
         path = pages.build_test_pdf(paper_size)
         self._add_paths([path], label="Test page")
 
-    # -- context menu --
+    # Context menu
 
     def _show_queue_context_menu(self, pos) -> None:
         if not self.file_list.selectedItems():
@@ -1434,15 +1417,11 @@ class MainWindow(QMainWindow):
         elif action == cancel_action:
             self._cancel_queue()
 
-    # -- printing --
+    # Printing
 
     @staticmethod
     def _interleave_copies(jobs: list[PrintJob]) -> list[PrintJob]:
-        """Round-robin one copy of each job at a time (1,2,1,2,... instead of
-        1,1,2,2,...): each round takes the jobs that still have a copy left
-        and sends them with copies=1, so consecutive print calls alternate
-        between files instead of finishing one file's copies before the
-        next starts."""
+        """Round-robin one copy of each job at a time (1,2,1,2,... instead of 1,1,2,2,...): each round takes the jobs that still have a copy left and sends them with copies=1, so consecutive print calls alternate between files instead of finishing one file's copies before the next starts."""
         max_copies = max((job.settings.copies for job in jobs), default=1)
         calls = []
         for round_index in range(max_copies):
@@ -1452,8 +1431,7 @@ class MainWindow(QMainWindow):
         return calls
 
     def _joined(self, jobs: list[PrintJob], join, what: str) -> list[PrintJob]:
-        """PDF files printed as one (by `join`), with the first one's
-        settings; other files follow as they are."""
+        """PDF files printed as one (by `join`), with the first one's settings; other files follow as they are."""
         pdfs = [j for j in jobs if j.path.suffix.lower() == ".pdf" and j.pending_extract is None]
         if len(pdfs) < 2:
             return jobs
@@ -1463,6 +1441,32 @@ class MainWindow(QMainWindow):
         self.log.appendPlainText(f"Printing {len(pdfs)} files as one ({what}).")
         merged = PrintJob(path=path, settings=pdfs[0].settings.clone(buffer_copy=False, delete_after_print=False))
         return [merged] + [j for j in jobs if j not in pdfs]
+
+    def _checked_pages(self, jobs: list[PrintJob]) -> list[PrintJob] | None:
+        """Before printing: Blank pages, scans with noise and small content are found page by page and asked about, one file at a time; a file changed as asked prints from a copy. None: printing called off."""
+        import dataclasses
+
+        from . import page_check
+
+        out = []
+        for job in jobs:
+            paper = pages._paper_points(job.settings.paper_size or self.settings_widget.to_settings().paper_size)
+            found = page_check.check(job.path, paper) if job.pending_extract is None else []
+            if not found:
+                out.append(job)
+                continue
+            choice = page_check.ask(self, job.path.name, found, settings.load_defaults())
+            if choice is None:
+                return None
+            if choice.any():
+                fixed = page_check.apply(job.path, choice, paper)
+                self.log.appendPlainText(f"{job.path.name}: " + "; ".join(x for x in (
+                    f"skipped page {page_check.pages_text(sorted(choice.skip))}" if choice.skip else "",
+                    f"filtered page {page_check.pages_text(sorted(choice.clean))}" if choice.clean else "",
+                    f"zoomed page {page_check.pages_text(sorted(choice.zoom))}" if choice.zoom else "") if x))
+                job = dataclasses.replace(job, path=fixed)
+            out.append(job)
+        return out
 
     def _bracket_blank_pages(self, jobs: list[PrintJob]) -> list[PrintJob]:
         mode = settings.load_blank_page_insertion()
@@ -1515,9 +1519,9 @@ class MainWindow(QMainWindow):
             self._refresh_item_text(job.job_id)
 
         if self.blank_area_warning_action.isChecked():
-            for job in jobs:
-                if job.pending_extract is None and pages.mostly_blank(job.path):
-                    self.log.appendPlainText(f"Warning: {job.path.name} looks mostly blank.")
+            jobs = self._checked_pages(jobs)
+            if jobs is None:
+                return
 
         order = self.settings_widget.order_combo.currentData()
         if (order == "copies" or self.interleave_copies_action.isChecked()) and len(jobs) > 1:
@@ -1575,13 +1579,11 @@ class MainWindow(QMainWindow):
             job.message = message
         self._refresh_item_text(job_id)
         if job is not None and status_value == JobStatus.PRINTING.value:
-            pages_note = f"pages {job.settings.page_range}" if job.settings.page_range else "all pages"
             self.progress_bar.setFormat("%v/%m sheets")
             fm = self.now_printing.fontMetrics()
             self.now_printing.setText(fm.elidedText(job.path.name, Qt.ElideMiddle, max(80, self.now_printing.width())))
             self.now_printing.setToolTip(job.path.name)
-            # The name's box fills as this file prints: an estimate from its
-            # pages, as the printer does not report its own progress.
+            # The name's box fills as this file prints: an estimate from its pages, as the printer does not report its own progress.
             self._file_started = datetime.now()
             self._file_seconds = max(3.0, 1.5 * (self._job_pages(job) or 1))
             self._file_timer.start()
@@ -1606,7 +1608,7 @@ class MainWindow(QMainWindow):
         self._print_run_started = None
         self._update_queue_stats()
 
-    # -- scheduling --
+    # Scheduling
 
     def _schedule_queue(self) -> None:
         if not self.jobs:
@@ -1621,9 +1623,7 @@ class MainWindow(QMainWindow):
         for job in self.jobs.values():
             path = job.path
             if job.pending_extract is not None:
-                # The scheduled command runs later, standalone, with no
-                # access to the original zip's queue entry -- extract now
-                # so there is a real file on disk for it to print.
+                # The scheduled command runs later, standalone, with no access to the original zip's queue entry: The file is extracted now, so there is a real file on disk for it to print.
                 zip_path, chain = job.pending_extract
                 try:
                     path = archive.extract_leaf(zip_path, chain)
@@ -1640,10 +1640,7 @@ class MainWindow(QMainWindow):
 
 def main() -> None:
     if sys.platform.startswith("win") and not getattr(sys, "frozen", False):
-        # From Python only: Windows groups a taskbar icon by this ID rather
-        # than by python.exe (whose icon it would show). The exe is left to
-        # Windows, which then shows the exe's own icon; an ID with no
-        # shortcut behind it gave the generic one there.
+        # From Python only: Windows groups a taskbar icon by this ID rather than by python.exe (whose icon it would show). The exe is left to Windows, which then shows the exe's own icon; an ID with no shortcut behind it gave the generic one there.
         import ctypes
 
         try:

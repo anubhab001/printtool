@@ -23,8 +23,7 @@ class Orientation(str, Enum):
 
 @dataclass
 class PrintSettings:
-    """Backend-agnostic print settings. Each backend maps what it can and
-    ignores/warns on anything it does not support."""
+    """Backend-agnostic print settings. Each backend maps what it can and ignores/warns on anything it does not support."""
 
     printer: str | None = None  # None = system default printer
     copies: int = 1
@@ -38,17 +37,16 @@ class PrintSettings:
     delete_after_print: bool = False  # delete the original file once printing succeeds
     mirror_lr: bool = False  # mirror left-right before printing (PDF only)
     mirror_tb: bool = False  # mirror top-bottom before printing (PDF only)
+    style: str = "color"  # color, gray, washed, high, low, negative, gray_negative or sepia (PDF only; core/style.py)
     # Added to each page before printing (PDF only).
     stamp_date: bool = False
     page_numbers: bool = False
     signature: str | None = None  # path to a PNG or JPEG
     pages_per_sheet: int = 1  # PDF pages laid out on one side of a sheet
     pages_grid: tuple[int, int] | None = None  # (columns, rows); None picks the closest fit
-    # Rows of their own, top to bottom (2, 1: two pages above, one wide below);
-    # when set, it is the layout and pages_per_sheet is its total.
+    # Rows of their own, top to bottom (2, 1: two pages above, one wide below); when set, it is the layout and pages_per_sheet is its total.
     pages_rows: tuple[int, ...] | None = None
-    # Lines drawn on a sheet of several pages: any of "rows" (between rows),
-    # "columns" (between columns), "frame" (around each page).
+    # Lines drawn on a sheet of several pages: any of "rows" (between rows), "columns" (between columns), "frame" (around each page).
     pages_lines: tuple[str, ...] = ()
 
     def clone(self, **overrides) -> "PrintSettings":
@@ -65,6 +63,7 @@ class PrintSettings:
             "delete_after_print": self.delete_after_print,
             "mirror_lr": self.mirror_lr,
             "mirror_tb": self.mirror_tb,
+            "style": self.style,
             "stamp_date": self.stamp_date,
             "page_numbers": self.page_numbers,
             "signature": self.signature,
@@ -90,9 +89,7 @@ _SEQ = itertools.count()
 
 @dataclass
 class PrintJob:
-    """A single file to print with its own settings. Two queued jobs can
-    share the same path (the same file queued twice, or duplicated), so
-    job_id rather than path identifies a job in the queue."""
+    """A single file to print with its own settings. Two queued jobs can share the same path (the same file queued twice, or duplicated), so job_id rather than path identifies a job in the queue."""
 
     path: Path
     settings: PrintSettings = field(default_factory=PrintSettings)
@@ -101,9 +98,7 @@ class PrintJob:
     job_id: str = field(default_factory=lambda: uuid.uuid4().hex)
     # Order of inclusion into the queue, for the "Time included" sort.
     seq: int = field(default_factory=lambda: next(_SEQ))
-    # Set when this job is a zip member not yet extracted: (zip_path, chain).
-    # `path` is a display-only stand-in until extraction actually happens,
-    # right before this job is printed.
+    # Set when this job is a zip member not yet extracted: (zip_path, chain). `path` is a display-only stand-in until extraction actually happens, right before this job is printed.
     pending_extract: tuple[Path, tuple[str, ...]] | None = None
 
 

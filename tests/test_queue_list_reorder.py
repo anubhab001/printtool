@@ -1,7 +1,4 @@
-"""Exercises the actual internal-drag reorder code path with a minimal
-fake QDropEvent, since Qt's native drag-and-drop loop does not run
-under the offscreen platform used for headless testing (this is a
-known Qt limitation, not specific to this project).
+"""Exercises the actual internal-drag reorder code path with a minimal fake QDropEvent, since Qt's native drag-and-drop loop does not run under the offscreen platform used for headless testing (this is a known Qt limitation, not specific to this project).
 """
 
 import sys
@@ -55,8 +52,7 @@ def test_drag_reorder_moves_single_item_down(app):
     _populate(q, ["a", "b", "c", "d"])
 
     q.item(0).setSelected(True)  # drag "a"
-    # The lower half of an item means "insert after it"; the upper half
-    # (or exactly its center) means "insert before it" -- see _row_at.
+    # The lower half of an item means "insert after it"; the upper half (or exactly its center) means "insert before it" -- see _row_at.
     rect = q.visualItemRect(q.item(2))
     drop_point = QPoint(rect.center().x(), rect.bottom() - 1)  # lower half of "c"
     q._reorder_dropped_selection(_FakeDropEvent(source=q, pos=drop_point))

@@ -1,12 +1,7 @@
 #!/usr/bin/env python3
-"""Download the official SumatraPDF portable build and unpack SumatraPDF.exe
-into printtool's local data directory, so the Windows backend can find it.
+"""Download the official SumatraPDF portable build and unpack SumatraPDF.exe into printtool's local data directory, so the Windows backend can find it.
 
-We do this instead of bundling the binary in the repo/wheel because
-SumatraPDF is GPLv3 -- shipping it ourselves would require this whole
-project to ship under GPLv3-compatible terms. Downloading it on demand from
-the official site, and only invoking it as a subprocess, keeps printtool's
-own MIT license clean while still giving users one-command setup.
+We do this instead of bundling the binary in the repo/wheel because SumatraPDF is GPLv3 -- shipping it ourselves would require this whole project to ship under GPLv3-compatible terms. Downloading it on demand from the official site, and only invoking it as a subprocess, keeps printtool's own MIT license clean while still giving users one-command setup.
 
 Usage:
     python scripts/fetch_sumatra.py [--version 3.6.1] [--dest PATH]

@@ -1,6 +1,4 @@
-"""Printable files from outside the disk: A URL (file:// or web) and email
-attachments dragged in. Everything lands in one buffer folder that is
-removed when printtool closes.
+"""Printable files from outside the disk: A URL (file:// or web) and email attachments dragged in. Everything lands in one buffer folder that is removed when printtool closes.
 
 - A link to a printable file (a PDF, or another printable type) is
   downloaded.
@@ -65,8 +63,7 @@ def download(url: str, folder: Path | None = None, name: str | None = None) -> P
 
 
 def look(url: str, extensions: set[str]) -> tuple[str, list[str]]:
-    """What a URL is: ("file", [url]) for something printable, ("page",
-    [links to printable files on it]) for a web page, ("local", [path])
+    """What a URL is: ("file", [url]) for something printable, ("page", [links to printable files on it]) for a web page, ("local", [path])
     for file:// ."""
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme == "file":
@@ -102,9 +99,7 @@ def save_virtual(name: str, data: bytes) -> Path:
 
 
 def virtual_files(mime) -> list[Path]:
-    """Attachments in a Windows drag ("FileGroupDescriptorW" names with
-    "FileContents"), saved to the buffer. Qt hands over the first file's
-    bytes; most mail programs drag one attachment at a time."""
+    """Attachments in a Windows drag ("FileGroupDescriptorW" names with "FileContents"), saved to the buffer. Qt hands over the first file's bytes; most mail programs drag one attachment at a time."""
     fmt = 'application/x-qt-windows-mime;value="FileGroupDescriptorW"'
     if fmt not in mime.formats():
         return []

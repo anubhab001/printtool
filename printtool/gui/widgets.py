@@ -1,5 +1,4 @@
-"""Reusable settings editor widget: used both as the "global settings" panel
-and inside the per-file override dialog, so the two never drift apart.
+"""Reusable settings editor widget: used both as the "global settings" panel and inside the per-file override dialog, so the two never drift apart.
 """
 
 from __future__ import annotations
@@ -7,7 +6,6 @@ from __future__ import annotations
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
-    QScrollArea,
     QLabel,
     QHBoxLayout,
     QCheckBox,
@@ -15,7 +13,6 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QLineEdit,
     QSpinBox,
-    QToolButton,
     QWidget,
 )
 
@@ -82,12 +79,10 @@ class SettingsWidget(QWidget):
         for d in Duplex:
             self.duplex_combo.addItem(duplex_labels[d], d)
 
-        # Pages per sheet: A number (1 by default); above 1 the grid choice
-        # opens with the layouts that fit that number.
+        # Pages per sheet: A number (1 by default); above 1 the grid choice opens with the layouts that fit that number.
         self.nup_spin = _PresetBox((1, 2, 3, 4, 6, 8, 9, 10, 12, 16))
         self.nup_spin.setFixedWidth(70)
-        # Each layout is shown as a small drawing of the sheet, with its
-        # pages numbered in reading order.
+        # Each layout is shown as a small drawing of the sheet, with its pages numbered in reading order.
         self.grid_combo = _FitPopupCombo()
         self.grid_combo.setIconSize(QSize(18, 22))
         self.grid_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
@@ -117,8 +112,7 @@ class SettingsWidget(QWidget):
         self.fit_check = QCheckBox("Fit to page")
         self.fit_check.setChecked(True)
 
-        # Collate only matters with more than one copy: Off for one copy,
-        # switched on (and preset) as soon as the count goes above one.
+        # Collate only matters with more than one copy: Off for one copy, switched on (and preset) as soon as the count goes above one.
         self.collate_check = QCheckBox("Collate")
         self.collate_check.setToolTip("With several copies, print whole sets (1-2-3, 1-2-3) instead of 1-1, 2-2, 3-3.")
         self.copies_spin.valueChanged.connect(self._sync_collate)
@@ -131,7 +125,7 @@ class SettingsWidget(QWidget):
         self.delete_after_print_check = QCheckBox("Delete original file after printing")
         self.delete_after_print_check.setToolTip(
             "Deletes the original file on disk once it prints successfully. A file printed from "
-            "inside a zip is left untouched -- only its extracted temporary copy is affected."
+            "inside a zip is left untouched; only its extracted temporary copy is affected."
         )
 
         from PySide6.QtWidgets import QPushButton
@@ -140,8 +134,13 @@ class SettingsWidget(QWidget):
 
         self.mirror_lr_check = QCheckBox("Mirror left-right")
         self.mirror_tb_check = QCheckBox("Mirror top-bottom")
-        # Added to each page; on a sheet of several pages each shrinks with
-        # its page.
+        from ..core.style import STYLES
+
+        self.style_combo = QComboBox()
+        for label, value in STYLES:
+            self.style_combo.addItem(label, value)
+        self.style_combo.setToolTip("Printing style: Each page drawn again in it (PDF only).")
+        # Added to each page; on a sheet of several pages each shrinks with its page.
         self.stamp_date_check = QCheckBox("Date and time")
         self.page_numbers_check = QCheckBox("Page numbers")
         self.signature_check = QCheckBox("Signature")
@@ -166,9 +165,7 @@ class SettingsWidget(QWidget):
         self.order_combo.currentIndexChanged.connect(lambda _i: _settings.save_defaults({"print_order": self.order_combo.currentData()}))
         self.share_sheets_check.toggled.connect(lambda on: _settings.save_defaults({"share_sheets": on}))
         self.eject_check.toggled.connect(lambda on: _settings.save_defaults({"eject_after_print": on}))
-        # The list of layouts shows each one at a readable size (cells of a
-        # fixed size), inside a fixed-size list that scrolls for long strips
-        # such as 1 x 10; the closed box shows the chosen one small.
+        # The list of layouts shows each one at a readable size (cells of a fixed size), inside a fixed-size list that scrolls for long strips such as 1 x 10; the closed box shows the chosen one small.
         from PySide6.QtWidgets import QListView
 
         popup = QListView()
@@ -185,6 +182,7 @@ class SettingsWidget(QWidget):
         advanced_layout.addRow(self.delete_after_print_check)
         advanced_layout.addRow(self.mirror_lr_check)
         advanced_layout.addRow(self.mirror_tb_check)
+        advanced_layout.addRow("Style", self.style_combo)
         marks = QHBoxLayout()
         marks.addWidget(QLabel("On each page"))
         for box in (self.stamp_date_check, self.page_numbers_check, self.signature_check):
@@ -258,8 +256,7 @@ class SettingsWidget(QWidget):
         return tuple(name for name, box in (("rows", self.lines_rows), ("columns", self.lines_cols), ("frame", self.lines_frame)) if box.isChecked())
 
     def _sheet_icon(self, per_sheet: int, cols: int, rows: int) -> QIcon:
-        """The sheet with its cells (all the same size whatever the layout),
-        numbered in reading order, with the chosen lines."""
+        """The sheet with its cells (all the same size whatever the layout), numbered in reading order, with the chosen lines."""
         cw, ch = 11, 14
         w, h = cols * cw + 4, rows * ch + 4
         pix = QPixmap(w, h)
@@ -316,35 +313,11 @@ class SettingsWidget(QWidget):
             self._grid_lines.setVisible(many)
             self.lines_frame.setVisible(many)
 
-    def _rows_icon(self, rows) -> QIcon:
-        """The sheet with rows of their own, cells numbered in reading order."""
-        width, ch = 34, 13
-        w, h = width + 4, len(rows) * ch + 4
-        pix = QPixmap(w, h)
-        pix.fill(QColor("white"))
-        p = QPainter(pix)
-        p.setPen(QColor("#888"))
-        p.drawRect(0, 0, w - 1, h - 1)
-        font = QFont()
-        font.setPixelSize(8)
-        p.setFont(font)
-        k = 0
-        for r, n in enumerate(rows):
-            cw = width / n
-            for c in range(n):
-                x, y = 2 + c * cw, 2 + r * ch
-                p.fillRect(int(x) + 1, y + 1, int(cw) - 2, ch - 2, QColor("#dfe8f6"))
-                p.setPen(QColor("#335"))
-                k += 1
-                p.drawText(int(x), y, int(cw), ch, Qt.AlignCenter, str(k))
-        p.end()
-        return QIcon(pix)
-
     def _grid_chosen(self, index: int) -> None:
         return  # preset grids only
         from PySide6.QtWidgets import QInputDialog
 
-        text, ok = QInputDialog.getText(self, "Rows of your own", "Pages in each row, top to bottom (for example 2, 1):",
+        text, ok = QInputDialog.getText(self, "Rows set by hand", "Pages in each row, top to bottom (for example 2, 1):",
                                         text=", ".join(map(str, self._rows or (2, 1))))
         try:
             rows = tuple(int(x) for x in text.replace(" ", "").split(",") if x) if ok else ()
@@ -402,6 +375,7 @@ class SettingsWidget(QWidget):
             delete_after_print=self.delete_after_print_check.isChecked(),
             mirror_lr=self.mirror_lr_check.isChecked(),
             mirror_tb=self.mirror_tb_check.isChecked(),
+            style=self.style_combo.currentData() or "color",
             stamp_date=self.stamp_date_check.isChecked(),
             page_numbers=self.page_numbers_check.isChecked(),
             signature=self.signature_path if self.signature_check.isChecked() and self.signature_path else None,
@@ -427,6 +401,8 @@ class SettingsWidget(QWidget):
         self.delete_after_print_check.setChecked(settings.delete_after_print)
         self.mirror_lr_check.setChecked(settings.mirror_lr)
         self.mirror_tb_check.setChecked(settings.mirror_tb)
+        k = self.style_combo.findData(getattr(settings, "style", "color"))
+        self.style_combo.setCurrentIndex(k if k >= 0 else 0)
         self.stamp_date_check.setChecked(settings.stamp_date)
         self.page_numbers_check.setChecked(settings.page_numbers)
         self.signature_path = settings.signature or ""

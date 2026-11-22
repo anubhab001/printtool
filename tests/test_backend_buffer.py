@@ -5,9 +5,7 @@ from printtool.core.models import PrintSettings
 
 
 class _FakeImpl:
-    """Stands in for the real OS backend module; records the path it was
-    actually asked to print, so the test can tell whether a buffer copy
-    (not the original) was used."""
+    """Stands in for the real OS backend module; records the path it was actually asked to print, so the test can tell whether a buffer copy (not the original) was used."""
 
     def __init__(self):
         self.printed_path: Path | None = None

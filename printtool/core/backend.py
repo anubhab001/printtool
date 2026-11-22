@@ -1,6 +1,4 @@
-"""Picks the right OS backend and exposes a single, uniform API that the
-CLI and GUI both call. This is the only module that needs to know a new
-backend exists.
+"""Picks the right OS backend and exposes a single, uniform API that the CLI and GUI both call. This is the only module that needs to know a new backend exists.
 """
 
 from __future__ import annotations
@@ -36,12 +34,11 @@ def print_file(path: Path, settings: PrintSettings) -> PrintResult:
     path = Path(path)
     job = PrintJob(path=path, settings=settings)
     temp_dirs: list[str] = []
+    style_note = ""
     try:
         print_path = path
         if settings.buffer_copy:
-            # Copy first, so a removable drive pulled after this point does
-            # not interrupt the print (the backend reads the copy, not the
-            # original).
+            # Copy first, so a removable drive pulled after this point does not interrupt the print (the backend reads the copy, not the original).
             temp_dir = tempfile.mkdtemp(prefix="printtool-")
             temp_dirs.append(temp_dir)
             print_path = Path(temp_dir) / path.name
@@ -53,7 +50,20 @@ def print_file(path: Path, settings: PrintSettings) -> PrintResult:
                 temp_dirs.append(str(mirrored.parent))
                 print_path = mirrored
 
+        if getattr(settings, "style", "color") not in ("", "color"):
+            from . import style as _style
+
+            folder = tempfile.mkdtemp(prefix="printtool-style-")
+            temp_dirs.append(folder)
+            styled = _style.restyle(print_path, settings.style, Path(folder))
+            if styled is not None:
+                print_path = styled
+            elif print_path.suffix.lower() == ".pdf":
+                style_note = f"style {settings.style} not applied (it needs PySide6, as in the GUI build); "
+
         success, message = _backend().print_file(print_path, settings)
+        if style_note:
+            message = style_note + (message or "")
 
         if success and settings.delete_after_print:
             try:
@@ -68,11 +78,3 @@ def print_file(path: Path, settings: PrintSettings) -> PrintResult:
             shutil.rmtree(temp_dir, ignore_errors=True)
     return PrintResult(job=job, success=success, message=message)
 
-
-def print_jobs(jobs: list[PrintJob]) -> list[PrintResult]:
-    """Print each job (which may each carry different settings) in order."""
-    results = []
-    for job in jobs:
-        result = print_file(job.path, job.settings)
-        results.append(result)
-    return results

@@ -1,9 +1,6 @@
 """Locate and drive the SumatraPDF portable binary, the Windows print engine.
 
-SumatraPDF (GPLv3) is never bundled inside this repository or any wheel we
-publish. We only invoke it as a separate subprocess at runtime -- the user
-(or `scripts/fetch_sumatra.py`) fetches the official portable build once and
-this module finds it. See README.md for the licensing rationale.
+SumatraPDF (GPLv3) is never bundled in this repository or in a published wheel. It only runs as a separate process: The official portable build is fetched once (by `scripts/fetch_sumatra.py`), and this module finds it; README.md gives the licensing reason.
 """
 
 from __future__ import annotations
@@ -54,8 +51,7 @@ def locate_sumatra() -> Path | None:
 
 
 def build_print_settings_tokens(settings: PrintSettings) -> list[str]:
-    """Translate our backend-agnostic settings into SumatraPDF's
-    `-print-settings` comma-list tokens."""
+    """Translate our backend-agnostic settings into SumatraPDF's `-print-settings` comma-list tokens."""
     tokens: list[str] = []
 
     if settings.copies > 1:
@@ -106,8 +102,7 @@ def print_file(sumatra_path: Path, path: Path, settings: PrintSettings) -> tuple
 
 
 def list_printers() -> list[str]:
-    """Enumerate Windows printers without a hard pywin32 dependency, falling
-    back to pywin32 for the default-printer lookup when available."""
+    """Enumerate Windows printers without a hard pywin32 dependency, falling back to pywin32 for the default-printer lookup when available."""
     try:
         import win32print  # type: ignore
 

@@ -1,6 +1,5 @@
 """Turn a PrintSettings back into the CLI flags that would reproduce it.
-Used by the GUI's "schedule for later" action, which hands a deferred
-print off to the OS scheduler as a `printtool print ...` invocation.
+Used by the GUI's "schedule for later" action, which hands a deferred print off to the OS scheduler as a `printtool print ...` invocation.
 """
 
 from __future__ import annotations
@@ -29,4 +28,6 @@ def settings_to_args(path: Path, settings: PrintSettings) -> list[str]:
         args.append("--mirror-lr")
     if settings.mirror_tb:
         args.append("--mirror-tb")
+    if getattr(settings, "style", "color") not in ("", "color"):
+        args += ["--style", settings.style]
     return args

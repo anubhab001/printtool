@@ -1,17 +1,12 @@
-"""Best-effort page counts and rough consumption estimates for the
-queue's status line. Only a PDF has a real page count available
-without printing it; other formats just do not contribute one. The
-ink/power/paper-area figures are rough, assumed-average-coverage
-estimates, not a measurement of any real printer or page.
+"""Best-effort page counts and rough consumption estimates for the queue's status line. Only a PDF has a real page count available without printing it; other formats just do not contribute one. The ink/power/paper-area figures are rough, assumed-average-coverage estimates, not a measurement of any real printer or page.
 """
 
 from __future__ import annotations
 
 import io
-import tempfile
+from pathlib import Path
 
 from . import scratch
-from pathlib import Path
 
 try:
     from pypdf import PdfReader, PdfWriter, Transformation
@@ -20,9 +15,7 @@ except Exception:  # pragma: no cover - optional dependency
     PdfWriter = None
     Transformation = None
 
-# cm^2, common sizes only; an unrecognised or unset paper_size falls back
-# to A4 for the estimate, since that is what fit_to_page would scale to
-# on most printers anyway.
+# Square centimeters, common sizes only; an unrecognized or unset paper_size falls back to A4 for the estimate, since that is what fit_to_page would scale to on most printers anyway.
 _PAPER_AREA_CM2 = {
     "A4": 623.7,
     "A3": 1247.4,
@@ -45,8 +38,7 @@ def count_pages(path: Path) -> int | None:
 
 
 def count_pages_in_bytes(data: bytes) -> int | None:
-    """A page count straight from a PDF's own bytes, so a zip member's
-    page count is known before it is ever extracted to disk."""
+    """A page count straight from a PDF's own bytes, so a zip member's page count is known before it is ever extracted to disk."""
     if PdfReader is None:
         return None
     try:
@@ -68,8 +60,7 @@ def _paper_points(paper_size: str | None) -> tuple[float, float]:
 
 
 def build_blank_pdf(paper_size: str | None) -> Path:
-    """A single, genuinely blank page at `paper_size`, for printer/paper
-    checks that do not need any real content."""
+    """A single, genuinely blank page at `paper_size`, for printer/paper checks that do not need any real content."""
     width, height = _paper_points(paper_size)
     writer = PdfWriter()
     writer.add_blank_page(width=width, height=height)
@@ -80,8 +71,7 @@ def build_blank_pdf(paper_size: str | None) -> Path:
 
 
 def build_test_pdf(paper_size: str | None) -> Path:
-    """A blank page with a border rectangle inset from each edge, as a
-    quick visual check that a printer is not cropping or mis-scaling."""
+    """A blank page with a border rectangle inset from each edge, as a quick visual check that a printer is not cropping or mis-scaling."""
     from pypdf.generic import DecodedStreamObject, NameObject
 
     width, height = _paper_points(paper_size)
@@ -100,9 +90,7 @@ def build_test_pdf(paper_size: str | None) -> Path:
 
 
 def mirror_pdf(path: Path, horizontal: bool, vertical: bool) -> Path | None:
-    """A mirrored copy of `path` written to a fresh temp folder, or None
-    when there is nothing to do (no mirroring requested, pypdf missing,
-    or the file is not a PDF)."""
+    """A mirrored copy of `path` written to a fresh temp folder, or None when there is nothing to do (no mirroring requested, pypdf missing, or the file is not a PDF)."""
     if PdfReader is None or not (horizontal or vertical) or path.suffix.lower() != ".pdf":
         return None
     try:
@@ -121,9 +109,7 @@ def mirror_pdf(path: Path, horizontal: bool, vertical: bool) -> Path | None:
 
 
 def grids_for(per_sheet: int) -> list[tuple[int, int]]:
-    """(columns, rows) layouts for `per_sheet` pages, closest to square
-    first: every exact fit, and for a prime count also the layouts of the
-    next number with one cell left blank (7: 2 x 4, 4 x 2, 1 x 7, 7 x 1)."""
+    """(columns, rows) layouts for `per_sheet` pages, closest to square first: every exact fit, and for a prime count also the layouts of the next number with one cell left blank (7: 2 x 4, 4 x 2, 1 x 7, 7 x 1)."""
     if per_sheet <= 1:
         return [(1, 1)]
 
@@ -156,11 +142,7 @@ def cells(sheet_w: float, sheet_h: float, per_sheet: int, grid: tuple[int, int] 
 
 def nup_pdf(path: Path, per_sheet: int, grid: tuple[int, int] | None = None, lines: tuple[str, ...] = (),
             rows: tuple[int, ...] | None = None) -> Path | None:
-    """A copy of `path` with several pages scaled into cells on each sheet,
-    reading left to right, top to bottom: `per_sheet` pages in a grid, or
-    rows of their own (`rows`); optional lines between rows, between columns,
-    or around each page. None when there is nothing to do (one per sheet,
-    pypdf missing, or not a PDF)."""
+    """A copy of `path` with several pages scaled into cells on each sheet, reading left to right, top to bottom: `per_sheet` pages in a grid, or rows of their own (`rows`); optional lines between rows, between columns, or around each page. None when there is nothing to do (one per sheet, pypdf missing, or not a PDF)."""
     if rows:
         per_sheet = sum(rows)
     if PdfReader is None or per_sheet <= 1 or path.suffix.lower() != ".pdf":
@@ -193,7 +175,7 @@ def nup_pdf(path: Path, per_sheet: int, grid: tuple[int, int] | None = None, lin
 
 
 def _grid_lines(width: float, height: float, layout, lines) -> "PageObject":
-    """A transparent page with thin grey lines for the cells of `layout`."""
+    """A transparent page with thin gray lines for the cells of `layout`."""
     from reportlab.pdfgen import canvas
 
     buf = io.BytesIO()
@@ -217,10 +199,7 @@ def _grid_lines(width: float, height: float, layout, lines) -> "PageObject":
 
 
 def stamp_pdf(path: Path, date: bool = True, numbers: bool = False, signature: str | None = None) -> Path | None:
-    """A copy of `path` with, on every page, any of: the date and time
-    (bottom right), the page number (bottom centre) and a signature image
-    (bottom left). Drawn with a reportlab overlay merged by pypdf. None
-    when there is nothing to do or it cannot be done (not a PDF)."""
+    """A copy of `path` with, on every page, any of: the date and time (bottom right), the page number (bottom centre) and a signature image (bottom left). Drawn with a reportlab overlay merged by pypdf. None when there is nothing to do or it cannot be done (not a PDF)."""
     if PdfReader is None or path.suffix.lower() != ".pdf" or not (date or numbers or signature):
         return None
     try:
@@ -256,27 +235,6 @@ def stamp_pdf(path: Path, date: bool = True, numbers: bool = False, signature: s
     except Exception:
         return None
 
-def mostly_blank(path: Path, threshold_bytes: int = 200) -> bool | None:
-    """A rough, content-stream-size heuristic for "this page has barely
-    anything on it" -- not a real render/coverage analysis, just enough
-    to flag an accidental blank page before it is printed. None means
-    unknown (not a PDF, or it could not be read)."""
-    if PdfReader is None or path.suffix.lower() != ".pdf":
-        return None
-    try:
-        reader = PdfReader(str(path))
-        if not reader.pages:
-            return None
-
-        def _blank(page) -> bool:
-            contents = page.get_contents()
-            return contents is None or len(contents.get_data()) < threshold_bytes
-
-        return any(_blank(page) for page in reader.pages)
-    except Exception:
-        return None
-
-
 def paper_area_cm2(paper_size: str | None, pages: int) -> float:
     area = _PAPER_AREA_CM2.get((paper_size or "A4").upper(), _PAPER_AREA_CM2["A4"])
     return area * pages
@@ -288,9 +246,7 @@ def rough_consumption(pages: int) -> tuple[float, float]:
 
 
 def sheets_needed(page_counts: list[int], per_sheet: int = 1, both_sides: bool = True, copies: int = 1, share: bool = False) -> int:
-    """Sheets of paper for files of `page_counts` pages: pages per sheet
-    first, then two sides per sheet; with `share`, a file may start on the
-    back of the previous file's last sheet."""
+    """Sheets of paper for files of `page_counts` pages: pages per sheet first, then two sides per sheet; with `share`, a file may start on the back of the previous file's last sheet."""
     sides_per_sheet = 2 if both_sides else 1
     faces = [-(-n // max(per_sheet, 1)) for n in page_counts if n > 0]
     if share and both_sides:
@@ -316,8 +272,7 @@ def concat_pdfs(paths: list[Path]) -> Path | None:
 
 
 def interleave_pdfs(paths: list[Path]) -> Path | None:
-    """One PDF taking page 1 of every file, then page 2 of every file that
-    has one, and so on."""
+    """One PDF taking page 1 of every file, then page 2 of every file that has one, and so on."""
     if PdfReader is None or not paths:
         return None
     try:

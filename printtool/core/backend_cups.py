@@ -1,6 +1,4 @@
-"""CUPS (`lp`/`lpstat`) backend -- used on Linux and macOS, which are both
-CUPS under the hood. This gives us direct, silent printing of PDFs with no
-viewer window, the same guarantee SumatraPDF provides on Windows.
+"""CUPS (`lp`/`lpstat`) backend, used on Linux and macOS (both are CUPS underneath): Direct, silent printing of PDFs with no viewer window, as SumatraPDF gives on Windows.
 """
 
 from __future__ import annotations

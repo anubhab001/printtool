@@ -1,6 +1,4 @@
-"""printtool CLI: print one or more PDFs, or every PDF in a folder, without
-opening a viewer -- same settings for everything, or per-file overrides via
-multiple invocations.
+"""printtool CLI: Prints one or more PDFs, or every PDF in a folder, without opening a viewer; the same settings for everything, or settings of its own for a file through another invocation.
 """
 
 from __future__ import annotations
@@ -10,6 +8,7 @@ from pathlib import Path
 
 import click
 
+from .core.style import STYLES
 from . import __version__
 from .core import backend, network_printer, schedule
 from .core.archive import extract_all
@@ -53,12 +52,14 @@ def _settings_options(f):
     )(f)
     f = click.option("--mirror-lr", is_flag=True, default=False, help="Mirror left-right before printing (PDF only).")(f)
     f = click.option("--mirror-tb", is_flag=True, default=False, help="Mirror top-bottom before printing (PDF only).")(f)
+    f = click.option("--style", type=click.Choice([v for _l, v in STYLES]), default="color", show_default=True,
+                     help="Printing style, each page drawn again in it (PDF only; needs PySide6).")(f)
     return f
 
 
 def _build_settings(
     printer, copies, duplex, paper, orientation, pages, fit, collate, buffer_copy, delete_after_print,
-    mirror_lr=False, mirror_tb=False,
+    mirror_lr=False, mirror_tb=False, style="color",
 ) -> PrintSettings:
     return PrintSettings(
         printer=printer,
@@ -73,13 +74,14 @@ def _build_settings(
         delete_after_print=delete_after_print,
         mirror_lr=mirror_lr,
         mirror_tb=mirror_tb,
+        style=style,
     )
 
 
 @click.group()
 @click.version_option(version=__version__)
 def main() -> None:
-    """Print PDFs directly, in batch, or from a whole folder -- no viewer window."""
+    """Print PDFs directly, in batch, or from a whole folder, with no viewer window."""
     ensure_settings_file()
 
 
@@ -95,12 +97,12 @@ def settings_path_cmd() -> None:
 @click.option("--dry-run", is_flag=True, help="Show what would be printed without printing.")
 def print_cmd(
     files, printer, copies, duplex, paper, orientation, pages, fit, collate, buffer_copy, delete_after_print,
-    mirror_lr, mirror_tb, dry_run,
+    mirror_lr, mirror_tb, style, dry_run,
 ):
     """Print one or more files with the same settings."""
     settings = _build_settings(
         printer, copies, duplex, paper, orientation, pages, fit, collate, buffer_copy, delete_after_print,
-        mirror_lr, mirror_tb,
+        mirror_lr, mirror_tb, style,
     )
     _run(files, settings, dry_run)
 
@@ -118,7 +120,7 @@ def print_cmd(
 @click.option("--dry-run", is_flag=True, help="Show what would be printed without printing.")
 def batch_folder_cmd(
     folder, recursive, ext, advanced, printer, copies, duplex, paper, orientation, pages, fit, collate, buffer_copy,
-    delete_after_print, mirror_lr, mirror_tb, dry_run,
+    delete_after_print, mirror_lr, mirror_tb, style, dry_run,
 ):
     """Print every printable file found in FOLDER (the current folder by default) with the same settings."""
     extensions = (
@@ -137,7 +139,7 @@ def batch_folder_cmd(
         return
     settings = _build_settings(
         printer, copies, duplex, paper, orientation, pages, fit, collate, buffer_copy, delete_after_print,
-        mirror_lr, mirror_tb,
+        mirror_lr, mirror_tb, style,
     )
     _run(files, settings, dry_run)
 
@@ -172,9 +174,7 @@ def add_printer_cmd(name, ip, protocol, port):
 @click.option("--at", "at_str", required=True, help='When to print, as "YYYY-MM-DD HH:MM".')
 @click.argument("subcommand_args", nargs=-1, type=click.UNPROCESSED)
 def schedule_cmd(at_str, subcommand_args):
-    """Schedule a PRINT or BATCH-FOLDER command (with all its own flags) to
-    run later through the OS's own scheduler, so it still runs even if
-    printtool itself is closed in the meantime.
+    """Schedule a PRINT or BATCH-FOLDER command (with all its own flags) to run later through the OS's own scheduler, so it still runs even if printtool itself is closed in the meantime.
 
     Example: printtool schedule --at "2026-11-06 09:00" print report.pdf --printer "Office Printer"
     """

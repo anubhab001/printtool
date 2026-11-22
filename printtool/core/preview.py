@@ -1,6 +1,4 @@
-"""Preview is intentionally not a custom PDF renderer -- it just hands the
-file to whatever PDF viewer the OS already has, which is the cheapest way
-to give users a look before they commit a batch to paper.
+"""Preview is not a PDF renderer of its own: It hands the file to the PDF viewer the OS already has, the cheapest way to look at a file before a batch goes to paper.
 """
 
 from __future__ import annotations
@@ -27,6 +25,5 @@ def reveal_in_file_manager(path: Path) -> None:
     elif sys.platform == "darwin":
         subprocess.run(["open", "-R", str(path)], check=False)
     else:
-        # No portable "select this file" on Linux across file managers;
-        # opening the containing folder is the closest equivalent.
+        # No portable "select this file" on Linux across file managers; opening the containing folder is the closest equivalent.
         subprocess.run(["xdg-open", str(path.parent)], check=False)

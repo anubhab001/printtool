@@ -1,5 +1,4 @@
-"""Persisted user defaults (a YAML file), so day-to-day choices like
-"always buffer-copy before printing" do not need re-picking every run.
+"""Persisted user defaults (a YAML file), so day-to-day choices like "always buffer-copy before printing" do not need re-picking every run.
 """
 
 from __future__ import annotations
@@ -28,14 +27,15 @@ DEFAULTS: dict = {
     "advanced_extensions": ["txt", "log", "html"],
     "auto_scan_pwd": True,
     "warn_on_blank_pages": True,
+    "on_blank_page": "ask",  # ask, skip or print
+    "on_noisy_scan": "ask",  # ask, filter or print
+    "on_small_content": "ask",  # ask, zoom or print
     "interleave_copies": False,
     "blank_page_insertion": "none",  # one of: none, before, after, both
     "stamp_timestamp": False,
 }
 
-# One comment per key, written above it when the file is (re)generated, so
-# a hand-editor sees what each option does and what values it accepts
-# without having to come back here.
+# One comment per key, written above it when the file is (re)generated, so a hand-editor sees what each option does and what values it accepts without having to come back here.
 _COMMENTS: dict = {
     "printer": "Printer name, or null to use the system default printer.",
     "paper_size": 'e.g. "A4" or "Letter"; null uses the printer\'s own default.',
@@ -52,7 +52,10 @@ _COMMENTS: dict = {
     "printable_extensions": "File extensions (no dots) always offered as printable, e.g. when scanning a folder or zip.",
     "advanced_extensions": "Extra extensions offered only with advanced options on. Printing one works only as well as the OS backend (SumatraPDF/CUPS) supports that format; nothing here is converted to PDF first.",
     "auto_scan_pwd": "Queue the current folder's printable files (zip contents included) automatically on startup.",
-    "warn_on_blank_pages": "Log a warning before printing a page that looks mostly blank (a rough heuristic, not a real render check).",
+    "warn_on_blank_pages": "Check each page before printing: A blank page can be skipped, a scan with noise filtered, small content zoomed to fill the sheet (asked file by file).",
+    "on_blank_page": "A blank or nearly blank page (a page number alone): ask, skip or print.",
+    "on_noisy_scan": "A scan with a gray veil or specks: ask, filter (text and pictures kept) or print.",
+    "on_small_content": "Content in a small part of the page (a scan taken at A0, a receipt in a corner): ask, zoom (to fill the paper) or print.",
     "interleave_copies": "Round-robin one copy of each queued file at a time instead of finishing one file's copies before starting the next.",
     "blank_page_insertion": "Print an extra blank page before/after/both around every queued file; one of none, before, after, both.",
     "stamp_timestamp": "Stamp the current date/time in the bottom-right corner of every printed PDF page (PDF files only).",
@@ -77,9 +80,7 @@ def settings_path() -> Path:
 
 
 def ensure_settings_file(path: Path | None = None) -> Path:
-    """Write the file with its defaults if it does not exist yet, so a
-    fresh install still has a real file to open and hand-edit, not just
-    in-memory defaults conjured on demand."""
+    """Write the file with its defaults if it does not exist yet, so a fresh install still has a real file to open and hand-edit, not just in-memory defaults conjured on demand."""
     path = path or settings_path()
     if not path.is_file():
         save_defaults(dict(DEFAULTS), path)
@@ -149,14 +150,6 @@ def load_blank_page_insertion(path: Path | None = None) -> str:
 
 def save_blank_page_insertion(value: str, path: Path | None = None) -> None:
     save_defaults({"blank_page_insertion": value}, path)
-
-
-def load_stamp_timestamp(path: Path | None = None) -> bool:
-    return bool(load_defaults(path)["stamp_timestamp"])
-
-
-def save_stamp_timestamp(value: bool, path: Path | None = None) -> None:
-    save_defaults({"stamp_timestamp": value}, path)
 
 
 def default_print_settings(path: Path | None = None) -> PrintSettings:

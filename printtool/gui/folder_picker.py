@@ -1,6 +1,4 @@
-"""Recursive folder picker: shows every printable file under a folder
-(including subfolders) as a checkable tree, so individual files or whole
-subfolders can be deselected before they are added to the queue.
+"""Recursive folder picker: shows every printable file under a folder (including subfolders) as a checkable tree, so individual files or whole subfolders can be deselected before they are added to the queue.
 """
 
 from __future__ import annotations
@@ -41,17 +39,14 @@ class FolderPickerDialog(QDialog):
         base_extensions = load_extensions(advanced=False)
         extensions = load_extensions(advanced=advanced)
         files = find_printable_files(folder, extensions, recursive=True)
-        # The root folder itself gets no tree item/checkbox; its direct
-        # children attach straight to the tree's invisible root.
+        # The root folder itself gets no tree item/checkbox; its direct children attach straight to the tree's invisible root.
         self._folder_items[folder] = None
 
         for path in files:
             parent_item = self._folder_item_for(path.parent, folder)
             file_item = QTreeWidgetItem(parent_item, [path.name])
             file_item.setFlags(file_item.flags() | Qt.ItemIsUserCheckable)
-            # An advanced-only format (not in printable_extensions) starts
-            # unchecked, so turning on "advanced" never silently queues a
-            # format the user has not actively opted into for this folder.
+            # An advanced-only format (not in printable_extensions) starts unchecked, so turning on "advanced" never silently queues a format the user has not actively opted into for this folder.
             is_base = path.suffix.lower().lstrip(".") in base_extensions
             file_item.setCheckState(0, Qt.Checked if is_base else Qt.Unchecked)
             file_item.setData(0, PATH_ROLE, path)

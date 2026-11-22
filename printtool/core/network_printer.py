@@ -1,16 +1,10 @@
-"""Register a network printer by IP address, so users don't have to go
-through OS-specific printer-setup UIs first.
+"""Register a network printer by IP address, so users don't have to go through OS-specific printer-setup UIs first.
 
-Linux/macOS: uses CUPS "driverless" IPP Everywhere, which covers the vast
-majority of printers made since ~2015. Falls back to raw socket (port 9100)
-for older printers that don't speak IPP.
+Linux/macOS: uses CUPS "driverless" IPP Everywhere, which covers the vast majority of printers made since ~2015. Falls back to raw socket (port 9100) for older printers that don't speak IPP.
 
-Windows: uses the built-in "IPP Class Driver" via PowerShell's Add-Printer,
-which covers the same IPP-capable printers without needing a vendor driver.
+Windows: uses the built-in "IPP Class Driver" via PowerShell's Add-Printer, which covers the same IPP-capable printers without needing a vendor driver.
 
-This is best-effort setup, not a replacement for a printer's own driver
-when advanced features (e.g. stapling) are needed -- those should still be
-installed through the OS.
+This is best-effort setup, not a replacement for a printer's own driver when advanced features (e.g., stapling) are needed; such a driver is still installed through the OS.
 """
 
 from __future__ import annotations

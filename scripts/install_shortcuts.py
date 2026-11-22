@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""Add printtool's GUI to the Start Menu (Windows) or application launcher
-(Linux), so it can be opened without a terminal. Terminal invocation
-(`printtool`, `printtool-gui`, or the standalone binaries) already works
-without this script; this only adds the menu entry.
+"""Add printtool's GUI to the Start Menu (Windows) or application launcher (Linux), so it can be opened without a terminal. Terminal invocation (`printtool`, `printtool-gui`, or the standalone binaries) already works without this script; this only adds the menu entry.
 
 Usage:
     python scripts/install_shortcuts.py --target "C:\\path\\to\\printtool-gui-windows.exe"

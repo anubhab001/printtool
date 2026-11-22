@@ -1,7 +1,4 @@
-"""Schedule a one-off future print through the OS's own scheduler
-(Task Scheduler on Windows, `at` on Linux/macOS), rather than an in-app
-timer: the job then runs even if printtool itself is closed in the
-meantime, exactly as if it had been run by hand at that time.
+"""Schedule a one-off future print through the OS's own scheduler (Task Scheduler on Windows, `at` on Linux/macOS), rather than an in-app timer: the job then runs even if printtool itself is closed in the meantime, exactly as if it had been run by hand at that time.
 """
 
 from __future__ import annotations
@@ -16,10 +13,7 @@ from pathlib import Path
 
 
 def _printtool_invocation() -> list[str]:
-    """The command to re-run printtool's CLI later, from inside a frozen
-    PyInstaller binary or from a normal Python install alike. The GUI
-    binary has no console and does not take CLI commands, so a schedule
-    made from it runs the CLI binary beside it."""
+    """The command to re-run printtool's CLI later, from inside a frozen PyInstaller binary or from a normal Python install alike. The GUI binary has no console and does not take CLI commands, so a schedule made from it runs the CLI binary beside it."""
     if getattr(sys, "frozen", False):
         exe = Path(sys.executable)
         if "gui" in exe.name.lower():
@@ -31,8 +25,7 @@ def _printtool_invocation() -> list[str]:
 
 
 def absolute_files(cli_args: list[str]) -> list[str]:
-    """Paths that exist made absolute: The scheduler runs the task from
-    another folder (System32 on Windows)."""
+    """Paths that exist made absolute: The scheduler runs the task from another folder (System32 on Windows)."""
     out = []
     for a in cli_args:
         p = Path(a)
@@ -48,10 +41,8 @@ def schedule_print(at: datetime, cli_args: list[str]) -> tuple[bool, str]:
 
 
 def _schedule_windows(at: datetime, command: list[str]) -> tuple[bool, str]:
-    """Registered through PowerShell's Register-ScheduledTask with an ISO
-    date, so the system's date format (dd/mm or mm/dd) does not matter.
-    Each task gets its own name, so several files scheduled for the same
-    minute do not replace one another."""
+    """Registered through PowerShell's Register-ScheduledTask with an ISO date, so the system's date format (dd/mm or mm/dd) does not matter.
+    Each task gets its own name, so several files scheduled for the same minute do not replace one another."""
     task_name = f"printtool-{at.strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6]}"
     args = subprocess.list2cmdline(command[1:])
     script = (

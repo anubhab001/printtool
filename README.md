@@ -12,7 +12,9 @@ Prints files straight to paper, one file or a whole batch, without opening it in
 - Print this: The chosen file. Print all: The whole queue, with the file and page printing now.
 - Pause, reorder, retry, or print later (the system's scheduler).
 - Sheets of paper counted before printing.
-- Network printers by IP address.
+- Pages checked before printing: A blank page, a scan with a gray veil, or content in a small part of the page (a receipt in a corner, a scan taken at A0) is offered for skipping, filtering or zooming to fill the paper; presets in Queue behavior.
+- Network printers by IP address, beside the printers found by themselves.
+- Printing style (Advanced): Color, grayscale, washed out, high or low contrast, color or grayscale negative, sepia; white paper stays white wherever it can.
 
 ## Screenshots
 

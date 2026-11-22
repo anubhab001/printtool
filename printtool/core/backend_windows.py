@@ -1,4 +1,4 @@
-"""Windows backend: drives the SumatraPDF portable binary (see sumatra.py)."""
+"""Windows backend: Drives the SumatraPDF portable binary (located by sumatra.py)."""
 
 from __future__ import annotations
 

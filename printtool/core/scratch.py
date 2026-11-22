@@ -1,7 +1,4 @@
-"""Working folders for files made on the way to printing (stamped, N-up,
-mirrored, joined pages, test and blank pages): One per use, all removed
-when printtool closes. (Zip extraction keeps its own folder: a scheduled
-print may still need the file after printtool has closed.)"""
+"""Working folders for files made on the way to printing (stamped, N-up, mirrored, joined pages, test and blank pages): One per use, all removed when printtool closes. (Zip extraction keeps its own folder: a scheduled print may still need the file after printtool has closed.)"""
 
 from __future__ import annotations
 

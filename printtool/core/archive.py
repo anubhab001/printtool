@@ -1,7 +1,4 @@
-"""Printable files inside a zip (including zips nested inside zips),
-tracked without extracting anything until a specific member is actually
-needed for printing. SumatraPDF/CUPS still need a real file on disk at
-that point, so extraction happens then, into a temporary folder.
+"""Printable files inside a zip (including zips nested inside zips), tracked without extracting anything until a specific member is actually needed for printing. SumatraPDF/CUPS still need a real file on disk at that point, so extraction happens then, into a temporary folder.
 """
 
 from __future__ import annotations
@@ -19,10 +16,7 @@ def is_archive(path: Path) -> bool:
 
 @dataclass
 class ArchiveNode:
-    """One entry in a zip's tree: either a printable file (a leaf) or a
-    nested zip (its own node, with its own children). `chain` is the
-    member-name path from the outermost zip down to this node, used to
-    extract it later without having to re-walk the tree."""
+    """One entry in a zip's tree: either a printable file (a leaf) or a nested zip (its own node, with its own children). `chain` is the member-name path from the outermost zip down to this node, used to extract it later without having to re-walk the tree."""
 
     name: str
     chain: tuple[str, ...]
@@ -49,9 +43,7 @@ def _walk(zf: zipfile.ZipFile, prefix: tuple[str, ...], extensions: set[str]) ->
 
 
 def build_tree(zip_path: Path, extensions: set[str]) -> ArchiveNode:
-    """The whole printable tree inside `zip_path`, one ArchiveNode per
-    member (recursing into any zip nested inside it); a nested zip with
-    no printable content anywhere inside it is left out entirely."""
+    """The whole printable tree inside `zip_path`, one ArchiveNode per member (recursing into any zip nested inside it); a nested zip with no printable content anywhere inside it is left out entirely."""
     with zipfile.ZipFile(zip_path) as zf:
         children = _walk(zf, (), extensions)
     return ArchiveNode(zip_path.name, (), is_zip=True, children=children)
@@ -69,26 +61,20 @@ def iter_leaves(node: ArchiveNode) -> list[tuple[str, ...]]:
 
 
 def extract_all(zip_path: Path, extensions: set[str]) -> list[Path]:
-    """Every printable file anywhere in `zip_path` (nested zips included),
-    extracted up front; for the CLI, which has no interactive tree to
-    pick from the way the GUI queue does."""
+    """Every printable file anywhere in `zip_path` (nested zips included), extracted up front; for the CLI, which has no interactive tree to pick from the way the GUI queue does."""
     tree = build_tree(zip_path, extensions)
     return [extract_leaf(zip_path, chain) for chain in iter_leaves(tree)]
 
 
 def extract_leaf(zip_path: Path, chain: tuple[str, ...]) -> Path:
-    """Extract the member named by `chain` (walking through any zips
-    nested along the way, entirely in memory until the last hop) to a
-    fresh temporary folder, and return its path there."""
+    """Extract the member named by `chain` (walking through any zips nested along the way, entirely in memory until the last hop) to a fresh temporary folder, and return its path there."""
     dest = Path(tempfile.mkdtemp(prefix="printtool-zip-")).resolve()
     with zipfile.ZipFile(zip_path) as zf:
         return _extract_from(zf, chain, dest)
 
 
 def read_leaf_bytes(zip_path: Path, chain: tuple[str, ...]) -> bytes:
-    """The member named by `chain`'s raw bytes, walking through any zips
-    nested along the way in memory, without writing anything to disk --
-    enough to read a PDF's page count ahead of actually printing it."""
+    """The member named by `chain`'s raw bytes, walking through any zips nested along the way in memory, without writing anything to disk; enough to read a PDF's page count before printing it."""
     with zipfile.ZipFile(zip_path) as zf:
         return _read_from(zf, chain)
 

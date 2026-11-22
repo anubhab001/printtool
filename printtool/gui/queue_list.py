@@ -1,6 +1,4 @@
-"""The print queue widget: a list that accepts files dragged in from the
-OS (add), removes an item dragged out to the remove zone or out of the
-window entirely (exclude), and reorders by dragging within itself.
+"""The print queue widget: a list that accepts files dragged in from the OS (add), removes an item dragged out to the remove zone or out of the window entirely (exclude), and reorders by dragging within itself.
 """
 
 from __future__ import annotations
@@ -21,21 +19,13 @@ from PySide6.QtWidgets import (
 
 JOB_ID_ROLE = Qt.UserRole
 STATUS_GLYPH_ROLE = Qt.UserRole + 1
-# A zip's header row and every row (nested header or leaf) tracked under
-# it share a pointer to that header row via ZIP_GROUP_HEADER_ROLE, so the
-# whole block can be moved or removed as one unit; ZIP_GROUP_ROLE marks
-# the header row itself.
+# A zip's header row and every row (nested header or leaf) tracked under it share a pointer to that header row via ZIP_GROUP_HEADER_ROLE, so the whole block can be moved or removed as one unit; ZIP_GROUP_ROLE marks the header row itself.
 ZIP_GROUP_ROLE = Qt.UserRole + 2
 ZIP_GROUP_HEADER_ROLE = Qt.UserRole + 3
 
-# A plain QListWidgetItem only has one icon slot, already used for the
-# file-type icon (left, native). The job status is drawn separately, as
-# a right-aligned glyph, by StatusGlyphDelegate below.
+# A plain QListWidgetItem only has one icon slot, already used for the file-type icon (left, native). The job status is drawn separately, as a right-aligned glyph, by StatusGlyphDelegate below.
 STATUS_GLYPHS = {
-    # Plain BMP symbols only: the obvious hourglass/flag emoji need a
-    # colour-emoji font fallback that is not guaranteed to be installed,
-    # and render as a tofu box without it. pending/printing/done read as
-    # one circle filling in: empty, half, full.
+    # Plain BMP symbols only: the obvious hourglass/flag emoji need a color-emoji font fallback that is not guaranteed to be installed, and render as a tofu box without it. pending/printing/done read as one circle filling in: empty, half, full.
     "pending": ("○", "#999"),  # empty circle: waiting
     "printing": ("◐", "#2a82da"),  # half-filled circle: in progress
     "done": ("●", "#2a8a2a"),  # filled circle
@@ -45,10 +35,7 @@ STATUS_GLYPHS = {
 
 
 class StatusGlyphDelegate(QStyledItemDelegate):
-    """Paints the normal row (the file-type icon plus the filename), then
-    a status glyph pinned to the right edge, so a queued file's icon and
-    its print status read as two separate things rather than one icon
-    standing in for both."""
+    """Paints the normal row (the file-type icon plus the filename), then a status glyph pinned to the right edge, so a queued file's icon and its print status read as two separate things rather than one icon standing in for both."""
 
     INDENT = "\u2003\u2003"
     STEP = 22  # pixels per nesting level
@@ -58,8 +45,7 @@ class StatusGlyphDelegate(QStyledItemDelegate):
         return (len(text) - len(text.lstrip(cls.INDENT[0]))) // len(cls.INDENT)
 
     def _tree_lines(self, painter, option, index, depth: int) -> None:
-        """Grey connector lines with a rounded elbow, drawn in the gutter the
-        row was shifted by, like a file tree."""
+        """Gray connector lines with a rounded elbow, drawn in the gutter the row was shifted by, like a file tree."""
         model = index.model()
         texts = [model.index(r, 0).data() or "" for r in range(index.row() + 1, model.rowCount())]
         later = [self._depth(t) for t in texts]
@@ -154,14 +140,7 @@ class QueueList(QListWidget):
         if not items:
             return
 
-        # An empty QMimeData means a real OS drop target (another app, a
-        # file manager folder) has nothing to accept, so it also reports
-        # Qt.IgnoreAction -- but so does dropping on some other widget of
-        # this same window (a button, the settings panel, ...) that just
-        # does not implement drag acceptance, which is not a request to
-        # remove anything. Only treat it as "dropped outside" when the
-        # cursor actually ends up outside this window; the remove zone's
-        # own drop target still removes via its own signal, unaffected.
+        # An empty QMimeData means a real OS drop target (another app, a file manager folder) has nothing to accept, so it also reports Qt.IgnoreAction; so does dropping on some other widget of this same window (a button, the settings panel, ...) that just does not implement drag acceptance, which is not a request to remove anything. Only treat it as "dropped outside" when the cursor actually ends up outside this window; the remove zone's own drop target still removes via its own signal, unaffected.
         drag = QDrag(self)
         drag.setMimeData(QMimeData())
         # The file's own icon follows the pointer, with the count when several.
@@ -192,10 +171,6 @@ class QueueList(QListWidget):
             for item in items:
                 self.takeItem(self.row(item))
             self.files_dragged_out.emit(paths)
-
-    def path_at_row(self, row: int) -> str | None:
-        item = self.item(row)
-        return item.data(JOB_ID_ROLE) if item else None
 
     def dragEnterEvent(self, event) -> None:  # noqa: N802 - Qt override
         virtual = 'application/x-qt-windows-mime;value="FileGroupDescriptorW"' in event.mimeData().formats()
@@ -263,9 +238,7 @@ class QueueList(QListWidget):
 
 
 class RemoveDropZone(QLabel):
-    """A small, explicit "drag here to remove" target, kept alongside
-    QueueList's own drag-out-of-the-window removal (startDrag) as a more
-    discoverable alternative for the same action."""
+    """A small, explicit "drag here to remove" target, kept alongside QueueList's own drag-out-of-the-window removal (startDrag) as a more discoverable alternative for the same action."""
 
     remove_requested = Signal()
 
@@ -277,8 +250,7 @@ class RemoveDropZone(QLabel):
         super().__init__(parent)
         from PySide6.QtGui import QColor, QPainter, QPen, QPixmap
 
-        # A drawn bin, then the word: the bottom of the queue reads as the
-        # place things go to be removed.
+        # A drawn bin, then the word: the bottom of the queue reads as the place things go to be removed.
         pix = QPixmap(16, 16)
         pix.fill(Qt.transparent)
         p = QPainter(pix)

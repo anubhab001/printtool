@@ -1,6 +1,4 @@
-"""File types dialog: tick which extensions count as printable. Writes
-printable_extensions in settings.yaml, which stays the hand-editable
-source of truth."""
+"""File types dialog: tick which extensions count as printable. Writes printable_extensions in settings.yaml, which stays the hand-editable source of truth."""
 
 from __future__ import annotations
 
